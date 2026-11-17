@@ -1,0 +1,9 @@
+.text {
+  margin-bottom: 12px;
+  color: var(--color-text-muted);
+}
+
+.link {
+  color: var(--color-accent);
+  font-weight: 600;
+}

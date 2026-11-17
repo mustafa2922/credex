@@ -1,0 +1,28 @@
+.controls {
+  display: flex;
+  align-self: stretch;
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+}
+
+.control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.control:hover {
+  background: var(--color-hover);
+}
+
+.close:hover {
+  background: #c42b1c;
+  color: #fff;
+}

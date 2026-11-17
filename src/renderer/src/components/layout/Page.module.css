@@ -1,0 +1,16 @@
+.page {
+  padding: 24px;
+  max-width: 960px;
+}
+
+.fullWidth {
+  max-width: none;
+  width: 100%;
+}
+
+.description {
+  max-width: 62ch;
+  margin-bottom: 20px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
