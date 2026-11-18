@@ -124,10 +124,10 @@ export function registerInvoicesIpc(db: Database.Database): void {
     return storeInvoiceImageFromBytes(bytes)
   })
 
-  ipcMain.handle('invoices:exportPdf', async (event, raw: unknown): Promise<boolean> => {
+  ipcMain.handle('invoices:exportPdf', async (_event, raw: unknown) => {
     try {
       const input = exportInvoiceSchema.parse(raw ?? {})
-      return await exportInvoicePdf(db, input.id, input.hideRates, parentWindow(event))
+      return await exportInvoicePdf(db, input.id, input.hideRates)
     } catch (error) {
       if (error instanceof ZodError) {
         throw new Error(formatZodError(error))

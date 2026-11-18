@@ -17,3 +17,7 @@
   background: var(--color-background-soft);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
 }
+
+.panelWide {
+  width: min(100%, 560px);
+}

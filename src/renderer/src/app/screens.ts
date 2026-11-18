@@ -5,6 +5,7 @@ import { ClientsPage } from '@renderer/pages/clients/ClientsPage'
 import { UnitsPage } from '@renderer/pages/units/UnitsPage'
 import { InvoicesPage } from '@renderer/pages/invoices/InvoicesPage'
 import { InvoicePage } from '@renderer/pages/invoices/InvoicePage'
+import { PaymentsPage } from '@renderer/pages/payments/PaymentsPage'
 import { SettingsPage } from '@renderer/pages/settings/SettingsPage'
 
 export type ScreenModule = {
@@ -84,6 +85,14 @@ export const screens: AppScreen[] = [
     icon: 'invoices',
     sidebar: false,
     Component: InvoicePage
+  },
+  {
+    id: 'payments',
+    path: 'payments',
+    label: 'Payments',
+    description: 'Record and review invoice payments.',
+    icon: 'payments',
+    Component: PaymentsPage
   },
   {
     id: 'settings',

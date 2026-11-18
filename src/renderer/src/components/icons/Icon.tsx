@@ -7,12 +7,15 @@ export type IconName =
   | 'clients'
   | 'units'
   | 'invoices'
+  | 'payments'
   | 'edit'
   | 'pause'
   | 'check'
   | 'chevronDown'
   | 'chevronUp'
   | 'chevronLeft'
+  | 'chevronRight'
+  | 'image'
   | 'minimize'
   | 'maximize'
   | 'restore'
@@ -67,6 +70,13 @@ const glyphs: Record<IconName, ReactNode> = {
       <path d="M8.5 16h4.5" />
     </>
   ),
+  payments: (
+    <>
+      <rect x="3.5" y="6.5" width="17" height="11" rx="2" />
+      <path d="M3.5 10h17" />
+      <path d="M7.5 14h3" />
+    </>
+  ),
   edit: (
     <>
       <path d="M12 20h9" />
@@ -88,12 +98,20 @@ const glyphs: Record<IconName, ReactNode> = {
   chevronDown: <path d="m7 10 5 5 5-5" />,
   chevronUp: <path d="m7 14 5-5 5 5" />,
   chevronLeft: <path d="m14 6-6 6 6 6" />,
-  minimize: <path d="M5 12h14" />,
-  maximize: <rect x="5.5" y="5.5" width="13" height="13" rx="1" />,
+  chevronRight: <path d="m10 6 6 6-6 6" />,
+  image: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <circle cx="9" cy="10" r="2" />
+      <path d="m21 16-4.5-4.5a2 2 0 0 0-2.8 0L5 20" />
+    </>
+  ),
+  minimize: <path d="M5 19h14" />,
+  maximize: <path d="M5 5h14v14H5z" />,
   restore: (
     <>
-      <rect x="8" y="8" width="11" height="11" rx="1" />
-      <path d="M8 11V6.5A1.5 1.5 0 0 1 9.5 5H16" />
+      <path d="M8 8h11v11H8z" />
+      <path d="M5 16V5h11" />
     </>
   ),
   close: (

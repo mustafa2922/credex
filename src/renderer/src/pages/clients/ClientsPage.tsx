@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { formatRupees } from '../../../../core/money'
 import type { Client, ClientListStatus } from '../../../../shared/clients'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
@@ -286,6 +287,9 @@ export function ClientsPage(): React.JSX.Element {
                 <tr>
                   <th scope="col">Name</th>
                   <th scope="col">Phone</th>
+                  <th className={styles.num} scope="col">
+                    Balance
+                  </th>
                   <th scope="col">Status</th>
                   <th scope="col">
                     <span className={styles.visuallyHidden}>Actions</span>
@@ -300,6 +304,7 @@ export function ClientsPage(): React.JSX.Element {
                   >
                     <td>{client.name}</td>
                     <td>{client.phone ?? '—'}</td>
+                    <td className={styles.num}>{formatRupees(client.balance)}</td>
                     <td>
                       <span
                         className={

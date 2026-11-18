@@ -1,13 +1,14 @@
 import { randomUUID } from 'crypto'
-import { app, dialog, nativeImage, type BrowserWindow, type OpenDialogOptions } from 'electron'
+import { dialog, nativeImage, type BrowserWindow, type OpenDialogOptions } from 'electron'
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { INVOICE_IMAGE_NAME } from '../../shared/invoices'
+import { filesDir } from '../paths'
 
 const STORED_MAX_SIDE = 1600
 
 export function filesDirectory(): string {
-  return join(app.getPath('userData'), 'files')
+  return filesDir()
 }
 
 function fitWithin(

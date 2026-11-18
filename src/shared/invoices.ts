@@ -1,6 +1,10 @@
+import type { Payment, PaymentStatus } from './payments'
+
 export type InvoiceStatus = 'draft' | 'issued' | 'void'
 
 export type InvoiceListStatus = InvoiceStatus | 'all'
+
+export type InvoicePaymentStatusFilter = PaymentStatus | 'all'
 
 export const INVOICE_FILE_SCHEME = 'credex-file'
 export const INVOICE_IMAGE_HOST = 'image'
@@ -43,6 +47,9 @@ export type InvoiceSummary = {
   invoice_date: string
   status: InvoiceStatus
   total: number
+  paid: number
+  due: number
+  payment_status: PaymentStatus
   created_at: string
   updated_at: string
 }
@@ -52,12 +59,14 @@ export type InvoiceDetail = InvoiceSummary & {
   void_reason: string | null
   issued_at: string | null
   lines: InvoiceLine[]
+  payments: Payment[]
 }
 
 export type ListInvoicesParams = {
   search?: string
   status?: InvoiceListStatus
   client_id?: string
+  payment_status?: InvoicePaymentStatusFilter
 }
 
 export type SaveInvoiceLine = {

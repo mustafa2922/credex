@@ -177,12 +177,25 @@
   color: var(--color-text-muted);
   font-weight: 600;
   font-size: 12px;
+  background: var(--color-background-mute);
 }
 
 .unitCol {
   width: 160px;
   min-width: 160px;
   max-width: 160px;
+}
+
+.qtyCol {
+  width: 88px;
+  min-width: 88px;
+  max-width: 96px;
+}
+
+.priceCol {
+  width: 112px;
+  min-width: 112px;
+  max-width: 120px;
 }
 
 .totalCol {
@@ -249,7 +262,8 @@
 
 .thumb,
 .thumbPlaceholder,
-.imageDropzone {
+.imageDropzone,
+.thumbButton {
   width: 40px;
   height: 40px;
   flex: 0 0 auto;
@@ -257,6 +271,26 @@
   border: 1px solid var(--color-border);
   background: var(--color-hover);
   object-fit: cover;
+}
+
+.thumbButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.thumbButton:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+}
+
+.thumbButton .thumb {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
 }
 
 .imageDropzone {
@@ -447,7 +481,11 @@
 
 .badgeDraft,
 .badgeIssued,
-.badgeVoid {
+.badgeVoid,
+.badgeUnpaid,
+.badgePartial,
+.badgePaid,
+.badgeActive {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
@@ -471,10 +509,215 @@
   background: rgba(180, 100, 100, 0.16);
 }
 
-.modalTitle {
-  margin-bottom: 16px;
-  font-size: 16px;
+.badgeUnpaid {
+  color: #e8a0a0;
+  background: rgba(180, 100, 100, 0.16);
+}
+
+.badgePartial {
+  color: #e0c07a;
+  background: rgba(180, 150, 80, 0.16);
+}
+
+.badgePaid {
+  color: #9ed4a8;
+  background: rgba(120, 180, 130, 0.16);
+}
+
+.badgeActive {
+  color: #9ed4a8;
+  background: rgba(120, 180, 130, 0.16);
+}
+
+.paymentSummaryCard {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background-soft);
+}
+
+.paymentSummaryGrid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 24px;
+}
+
+.paymentSummaryField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+  flex: 1;
+}
+
+.paymentSummaryBadge {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.stamp {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.25;
+}
+
+.stampDate {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.stampTime {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.paymentsSection {
+  margin-top: 16px;
+}
+
+.paymentsHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.paymentEmpty {
+  margin: 0;
+  padding: 16px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.thumbCol {
+  width: 52px;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.actionButton:hover:not(:disabled) {
+  background: var(--color-hover);
+  color: #e8a0a0;
+}
+
+.actionButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.imageButton {
+  color: var(--color-text);
+}
+
+.imageButton:hover:not(:disabled) {
+  color: var(--color-accent);
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modalField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modalLabel {
+  font-size: 13px;
   font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.modalInput,
+.modalInputInvalid {
+  min-height: 34px;
+  width: 100%;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  font-size: 13px;
+  color: inherit;
+}
+
+.modalInput:focus,
+.modalInputInvalid:focus {
+  outline: 2px solid var(--color-accent-soft);
+  outline-offset: 1px;
+}
+
+.modalInputInvalid {
+  border-color: #c96a6a;
+}
+
+.modalInput:disabled,
+.modalInputInvalid:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.amountRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.amountRow .modalInput,
+.amountRow .modalInputInvalid {
+  flex: 1;
+  min-width: 120px;
+}
+
+.attachmentRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.attachmentThumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-hover);
+  object-fit: cover;
+}
+
+.modalTitle {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .confirmMessage {
@@ -488,7 +731,6 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 8px;
 }
 
 .check {
@@ -497,6 +739,11 @@
   gap: 8px;
   margin-bottom: 16px;
   font-size: 14px;
+}
+
+.notAvailable {
+  color: var(--color-text-muted);
+  font-style: italic;
 }
 
 .visuallyHidden {

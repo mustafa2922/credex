@@ -8,6 +8,20 @@ import type {
   SaveInvoiceInput,
   VoidInvoiceInput
 } from '../shared/invoices'
+import type {
+  ChangeDataDirInput,
+  ChangeFolderInput,
+  ExportInvoicePdfResult,
+  SettingsSnapshot,
+  StartupState
+} from '../shared/settings'
+import type {
+  CreatePaymentInput,
+  ListPaymentsParams,
+  Payment,
+  PaymentSummary,
+  VoidPaymentInput
+} from '../shared/payments'
 import type { ListUnitsParams, Unit } from '../shared/units'
 
 const clients = {
@@ -44,12 +58,53 @@ const invoices = {
   deleteDraft: (id: string): Promise<void> => ipcRenderer.invoke('invoices:deleteDraft', id),
   pickImage: (): Promise<string | null> => ipcRenderer.invoke('invoices:pickImage'),
   saveImage: (bytes: Uint8Array): Promise<string> => ipcRenderer.invoke('invoices:saveImage', bytes),
-  exportPdf: (input: ExportInvoicePdfInput): Promise<boolean> =>
+  exportPdf: (input: ExportInvoicePdfInput): Promise<ExportInvoicePdfResult> =>
     ipcRenderer.invoke('invoices:exportPdf', input)
+}
+
+const settings = {
+  get: (): Promise<SettingsSnapshot> => ipcRenderer.invoke('settings:get'),
+  copyDiagnostics: (): Promise<string> => ipcRenderer.invoke('settings:copyDiagnostics'),
+  pickDirectory: (title?: string): Promise<string | null> =>
+    ipcRenderer.invoke('settings:pickDirectory', title),
+  inspectDataDir: (
+    path: string
+  ): Promise<{
+    path: string
+    empty: boolean
+    hasLedger: boolean
+    schemaVersion: number | null
+    syncFolder: boolean
+    overlapsCurrent: boolean
+  }> => ipcRenderer.invoke('settings:inspectDataDir', path),
+  changeDataDir: (input: ChangeDataDirInput): Promise<{ relaunch: true }> =>
+    ipcRenderer.invoke('settings:changeDataDir', input),
+  changeExportsDir: (input: ChangeFolderInput): Promise<SettingsSnapshot> =>
+    ipcRenderer.invoke('settings:changeExportsDir', input),
+  changeBackupDir: (input: ChangeFolderInput): Promise<SettingsSnapshot> =>
+    ipcRenderer.invoke('settings:changeBackupDir', input),
+  clearBackupDir: (): Promise<SettingsSnapshot> => ipcRenderer.invoke('settings:clearBackupDir'),
+  openPath: (path: string): Promise<void> => ipcRenderer.invoke('settings:openPath', path),
+  showInFolder: (path: string): Promise<void> => ipcRenderer.invoke('settings:showInFolder', path),
+  openConfig: (): Promise<void> => ipcRenderer.invoke('settings:openConfig'),
+  openLogs: (): Promise<void> => ipcRenderer.invoke('settings:openLogs')
+}
+
+const payments = {
+  list: (params?: ListPaymentsParams): Promise<PaymentSummary[]> =>
+    ipcRenderer.invoke('payments:list', params ?? {}),
+  create: (input: CreatePaymentInput): Promise<Payment> =>
+    ipcRenderer.invoke('payments:create', input),
+  void: (input: VoidPaymentInput): Promise<Payment> => ipcRenderer.invoke('payments:void', input),
+  pickAttachment: (): Promise<string | null> => ipcRenderer.invoke('payments:pickAttachment')
 }
 
 const api = {
   info: (): Promise<{ version: string; schema: number }> => ipcRenderer.invoke('app:info'),
+  startup: (): Promise<StartupState> => ipcRenderer.invoke('app:startup'),
+  retryStartup: (): Promise<StartupState> => ipcRenderer.invoke('app:retryStartup'),
+  chooseDataDir: (): Promise<StartupState> => ipcRenderer.invoke('app:chooseDataDir'),
+  quitApp: (): Promise<void> => ipcRenderer.invoke('app:quit'),
   checkUpdates: (): Promise<void> => ipcRenderer.invoke('updates:check'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('updates:install'),
   onUpdateStatus: (cb: (s: string) => void): (() => void) => {
@@ -78,7 +133,9 @@ const api = {
   },
   clients,
   units,
-  invoices
+  invoices,
+  payments,
+  settings
 }
 contextBridge.exposeInMainWorld('api', api)
 export type Api = typeof api

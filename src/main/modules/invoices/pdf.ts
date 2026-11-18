@@ -1,11 +1,15 @@
 import { randomUUID } from 'crypto'
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import type Database from 'better-sqlite3'
-import { unlinkSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, unlinkSync, writeFileSync } from 'fs'
+import { basename, join } from 'path'
 import { formatQuantityThousandths, formatRupees } from '../../../core/money'
+import { pdfExportBasename, uniqueFilePath } from '../../../core/folders'
 import type { InvoiceDetail } from '../../../shared/invoices'
+import type { ExportInvoicePdfResult } from '../../../shared/settings'
+import { paymentMethodLabel } from '../../../shared/payments'
 import { storedImageDataUri } from '../../files/images'
+import { assertExportsDirWritable } from '../../paths'
 import { getInvoice } from './service'
 
 function escapeHtml(value: string): string {
@@ -81,6 +85,36 @@ function renderInvoiceHtml(invoice: InvoiceDetail, hideRates: boolean): string {
       <tbody>${rows}</tbody>
     </table>
     <p class="total">Total ${escapeHtml(formatRupees(invoice.total))}</p>
+    ${
+      invoice.payments.filter((payment) => payment.status === 'active').length > 0
+        ? `<table>
+      <thead>
+        <tr>
+          <th>Payment date</th>
+          <th>Method</th>
+          <th class="num">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${invoice.payments
+          .filter((payment) => payment.status === 'active')
+          .map(
+            (payment) => `<tr>
+          <td>${escapeHtml(payment.payment_date)}</td>
+          <td>${escapeHtml(paymentMethodLabel(payment.method))}</td>
+          <td class="num">${escapeHtml(formatRupees(payment.amount))}</td>
+        </tr>`
+          )
+          .join('')}
+      </tbody>
+    </table>
+    <p class="total">Paid ${escapeHtml(formatRupees(invoice.paid))}</p>
+    <p class="total">Due ${escapeHtml(formatRupees(invoice.due))}</p>`
+        : invoice.status === 'issued'
+          ? `<p class="total">Paid ${escapeHtml(formatRupees(invoice.paid))}</p>
+    <p class="total">Due ${escapeHtml(formatRupees(invoice.due))}</p>`
+          : ''
+    }
   </body>
 </html>`
 }
@@ -88,11 +122,12 @@ function renderInvoiceHtml(invoice: InvoiceDetail, hideRates: boolean): string {
 export async function exportInvoicePdf(
   db: Database.Database,
   id: string,
-  hideRates: boolean,
-  parent?: BrowserWindow | null
-): Promise<boolean> {
+  hideRates = false
+): Promise<ExportInvoicePdfResult> {
   const invoice = getInvoice(db, id)
   if (!invoice) throw new Error('Invoice not found')
+
+  const dir = assertExportsDirWritable()
 
   const htmlPath = join(app.getPath('temp'), `credex-invoice-${randomUUID()}.html`)
   const win = new BrowserWindow({
@@ -117,20 +152,15 @@ export async function exportInvoicePdf(
       printBackground: true,
       preferCSSPageSize: true
     })
-    const options = {
-      title: 'Export invoice',
-      defaultPath: join(app.getPath('documents'), `${invoice.number ?? 'invoice'}.pdf`),
-      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    const desired = pdfExportBasename(invoice.number, hideRates)
+    const filePath = uniqueFilePath(dir, desired, existsSync)
+    try {
+      writeFileSync(filePath, pdf)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      throw new Error(`Could not save PDF to:\n${filePath}\n\n${reason}`)
     }
-    const result = parent
-      ? await dialog.showSaveDialog(parent, options)
-      : await dialog.showSaveDialog(options)
-    if (result.canceled || !result.filePath) return false
-    const filePath = result.filePath.toLowerCase().endsWith('.pdf')
-      ? result.filePath
-      : `${result.filePath}.pdf`
-    writeFileSync(filePath, pdf)
-    return true
+    return { saved: true, filename: basename(filePath), filePath }
   } finally {
     if (!win.isDestroyed()) win.destroy()
     try {

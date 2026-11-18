@@ -1,8 +1,0 @@
-
-start window
-electron imported
-ready
-before window
-window created
-load called
-alive

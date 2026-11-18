@@ -111,6 +111,7 @@
   color: var(--color-text-muted);
   font-weight: 600;
   font-size: 12px;
+  background: var(--color-background-mute);
 }
 
 .table tbody tr:last-child td {
@@ -134,7 +135,10 @@
 
 .badgeDraft,
 .badgeIssued,
-.badgeVoid {
+.badgeVoid,
+.badgeUnpaid,
+.badgePartial,
+.badgePaid {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
@@ -156,6 +160,21 @@
 .badgeVoid {
   color: #e8a0a0;
   background: rgba(180, 100, 100, 0.16);
+}
+
+.badgeUnpaid {
+  color: #e8a0a0;
+  background: rgba(180, 100, 100, 0.16);
+}
+
+.badgePartial {
+  color: #e0c07a;
+  background: rgba(180, 150, 80, 0.16);
+}
+
+.badgePaid {
+  color: #9ed4a8;
+  background: rgba(120, 180, 130, 0.16);
 }
 
 .actionsCol {

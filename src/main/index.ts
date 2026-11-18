@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -7,12 +7,82 @@ import { openDb, schemaVersion } from './db'
 import { registerFileProtocol, registerFileScheme } from './files/protocol'
 import { registerClientsIpc } from './modules/clients/ipc'
 import { registerInvoicesIpc } from './modules/invoices/ipc'
+import { registerPaymentsIpc } from './modules/payments/ipc'
 import { registerUnitsIpc } from './modules/units/ipc'
+import {
+  registerRecoveryIpc,
+  registerSettingsIpc,
+  setStartupOk
+} from './modules/settings/ipc'
+import { initializePaths, ensureExportsDir } from './paths'
+import { logger } from './logger'
 import { setupUpdater } from './updater'
 
 registerFileScheme()
 
-// Window background until the renderer reports the saved theme.
+function installApplicationMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(process.platform === 'darwin'
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' as const },
+              { type: 'separator' as const },
+              { role: 'services' as const },
+              { type: 'separator' as const },
+              { role: 'hide' as const },
+              { role: 'hideOthers' as const },
+              { role: 'unhide' as const },
+              { type: 'separator' as const },
+              { role: 'quit' as const }
+            ]
+          }
+        ]
+      : []),
+    { role: 'editMenu' },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    { role: 'windowMenu' }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+function wireZoomShortcuts(win: BrowserWindow): void {
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    if (!(input.control || input.meta) || input.alt) return
+
+    const { key, code } = input
+    const zoomIn =
+      key === '+' || key === '=' || code === 'Equal' || code === 'NumpadAdd'
+    const zoomOut =
+      key === '-' || key === '_' || code === 'Minus' || code === 'NumpadSubtract'
+    const resetZoom = key === '0' || code === 'Digit0' || code === 'Numpad0'
+
+    if (!zoomIn && !zoomOut && !resetZoom) return
+
+    event.preventDefault()
+    const contents = win.webContents
+    if (contents.isDestroyed()) return
+    if (zoomIn) contents.setZoomLevel(contents.getZoomLevel() + 0.5)
+    else if (zoomOut) contents.setZoomLevel(contents.getZoomLevel() - 0.5)
+    else contents.setZoomLevel(0)
+  })
+}
+
 let windowBackground = '#1b1b1f'
 
 function applyWindowBackground(win: BrowserWindow): void {
@@ -21,7 +91,6 @@ function applyWindowBackground(win: BrowserWindow): void {
 }
 
 function createWindow(): BrowserWindow {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
@@ -29,7 +98,6 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     backgroundColor: windowBackground,
     ...(process.platform === 'linux' ? { icon } : {}),
-    // Frameless caption so window controls live in the page and modals can cover them.
     ...(process.platform === 'win32' ? { titleBarStyle: 'hidden' as const } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -54,8 +122,6 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
-  // HMR for renderer based on electron-vite CLI.
-  // Load the remote URL for development or the local HTML file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -65,31 +131,7 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-app.whenReady().then(() => {
-  // Set app user model ID for Windows.
-  electronApp.setAppUserModelId('com.electron')
-
-  // Default open or close DevTools by F12 in development.
-  // Ignore CommandOrControl + R in production.
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
-
-  // Initialize the database.
-  const db = openDb()
-  registerClientsIpc(db)
-  registerUnitsIpc(db)
-  registerInvoicesIpc(db)
-  registerFileProtocol()
-
-  // Provide application information to the renderer.
-  ipcMain.handle('app:info', () => ({
-    version: app.getVersion(),
-    schema: schemaVersion(db)
-  }))
-
+function registerWindowIpc(): void {
   ipcMain.on('window:theme', (event, payload: unknown) => {
     if (!payload || typeof payload !== 'object') return
     const { color } = payload as { color?: unknown }
@@ -119,12 +161,47 @@ app.whenReady().then(() => {
     const win = BrowserWindow.fromWebContents(event.sender)
     return Boolean(win && !win.isDestroyed() && win.isMaximized())
   })
+}
 
-  // Create the main window and initialize the updater.
+app.whenReady().then(() => {
+  electronApp.setAppUserModelId('com.electron')
+  installApplicationMenu()
+
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window, { zoom: true })
+    wireZoomShortcuts(window)
+  })
+
+  registerRecoveryIpc()
+  registerWindowIpc()
+
+  const startup = initializePaths()
+  if (!startup.ok) {
+    logger.error(`Startup blocked: ${startup.reason} (${startup.path})`)
+    createWindow()
+    return
+  }
+
+  setStartupOk()
+  ensureExportsDir()
+  logger.info(`Data folder ready at startup`)
+
+  const db = openDb()
+  registerClientsIpc(db)
+  registerUnitsIpc(db)
+  registerInvoicesIpc(db)
+  registerPaymentsIpc(db)
+  registerSettingsIpc(db)
+  registerFileProtocol()
+
+  ipcMain.handle('app:info', () => ({
+    version: app.getVersion(),
+    schema: schemaVersion(db)
+  }))
+
   const win = createWindow()
   setupUpdater(win)
 
-  // Re-create a window when the macOS dock icon is clicked.
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
@@ -132,7 +209,6 @@ app.whenReady().then(() => {
   })
 })
 
-// Quit when all windows are closed, except on macOS.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()

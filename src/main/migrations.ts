@@ -60,5 +60,28 @@ export const migrations: { version: number; sql: string }[] = [
           INSERT INTO app_meta (key, value)
           SELECT 'invoice_counter', '0'
           WHERE NOT EXISTS (SELECT 1 FROM app_meta WHERE key = 'invoice_counter');`
+  },
+  {
+    version: 5,
+    sql: `CREATE TABLE payments (
+            id TEXT PRIMARY KEY,
+            invoice_id TEXT NOT NULL REFERENCES invoices(id),
+            amount INTEGER NOT NULL CHECK (amount > 0),
+            method TEXT NOT NULL CHECK (method IN ('cash','cheque','online')),
+            payment_date TEXT NOT NULL,
+            reference TEXT,
+            note TEXT,
+            attachment_path TEXT,
+            status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','void')),
+            void_reason TEXT,
+            voided_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX idx_payments_invoice ON payments(invoice_id);`
+  },
+  {
+    version: 6,
+    sql: `ALTER TABLE payments DROP COLUMN reference;`
   }
 ]

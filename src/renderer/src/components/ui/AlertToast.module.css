@@ -2,7 +2,8 @@
   position: fixed;
   top: calc(var(--topbar-height) + 16px);
   right: 16px;
-  z-index: 1400;
+  /* Above Modal (10000) and SearchableSelect menus (11000) */
+  z-index: 12000;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: start;
@@ -71,6 +72,27 @@
   font-size: 13px;
   line-height: 1.4;
   color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.action:hover {
+  text-decoration: underline;
 }
 
 .close {

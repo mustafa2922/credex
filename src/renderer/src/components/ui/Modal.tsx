@@ -6,6 +6,7 @@ type ModalProps = {
   labelledBy: string
   children: ReactNode
   busy?: boolean
+  size?: 'default' | 'wide'
   onClose: () => void
 }
 
@@ -13,6 +14,7 @@ export function Modal({
   labelledBy,
   children,
   busy = false,
+  size = 'default',
   onClose
 }: ModalProps): React.JSX.Element {
   useEffect(() => {
@@ -42,7 +44,9 @@ export function Modal({
   return createPortal(
     <div className={styles.backdrop} role="presentation" onClick={handleBackdropClick}>
       <div
-        className={styles.panel}
+        className={[styles.panel, size === 'wide' ? styles.panelWide : null]
+          .filter(Boolean)
+          .join(' ')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}

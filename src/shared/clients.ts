@@ -5,6 +5,7 @@ export type Client = {
   name: string
   phone: string | null
   status: ClientStatus
+  balance: number
   created_at: string
   updated_at: string
 }

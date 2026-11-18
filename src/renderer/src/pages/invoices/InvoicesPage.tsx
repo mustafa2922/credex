@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { formatRupees } from '../../../../core/money'
-import type { InvoiceListStatus, InvoiceStatus, InvoiceSummary } from '../../../../shared/invoices'
+import type {
+  InvoiceListStatus,
+  InvoicePaymentStatusFilter,
+  InvoiceStatus,
+  InvoiceSummary
+} from '../../../../shared/invoices'
+import { paymentStatusLabel } from '../../../../shared/payments'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
-import { AlertToast, type AlertTone } from '@renderer/components/ui/AlertToast'
+import { AlertToast, type AlertAction, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
@@ -50,6 +56,7 @@ type AlertState = {
   title: string
   message: string
   tone: AlertTone
+  actions?: AlertAction[]
 }
 
 type TrashModalProps = {
@@ -156,6 +163,7 @@ export function InvoicesPage(): React.JSX.Element {
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<InvoiceListStatus>('all')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<InvoicePaymentStatusFilter>('all')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [trashTarget, setTrashTarget] = useState<InvoiceSummary | null>(null)
   const [reopenTarget, setReopenTarget] = useState<InvoiceSummary | null>(null)
@@ -164,9 +172,9 @@ export function InvoicesPage(): React.JSX.Element {
   const requestId = useRef(0)
 
   const showAlert = useCallback(
-    (message: string, title: string, tone: AlertTone): void => {
+    (message: string, title: string, tone: AlertTone, actions?: AlertAction[]): void => {
       alertIdRef.current += 1
-      setAlert({ id: alertIdRef.current, title, message, tone })
+      setAlert({ id: alertIdRef.current, title, message, tone, actions })
     },
     []
   )
@@ -179,7 +187,8 @@ export function InvoicesPage(): React.JSX.Element {
       const rows = invoicesApi
         ? await invoicesApi.list({
             search: search.trim() || undefined,
-            status: statusFilter
+            status: statusFilter,
+            payment_status: paymentStatusFilter
           })
         : await Promise.reject(new Error('Invoices are unavailable'))
       if (id !== requestId.current) return
@@ -192,14 +201,15 @@ export function InvoicesPage(): React.JSX.Element {
     } finally {
       if (id === requestId.current) setLoading(false)
     }
-  }, [search, statusFilter])
+  }, [search, statusFilter, paymentStatusFilter])
 
   useEffect(() => {
     setLoading(true)
     void refresh()
   }, [refresh])
 
-  const filtered = search.trim() !== '' || statusFilter !== 'all'
+  const filtered =
+    search.trim() !== '' || statusFilter !== 'all' || paymentStatusFilter !== 'all'
   const showEmpty = !loading && !loadError && invoices.length === 0 && !filtered
   const showNoResults = !loading && !loadError && invoices.length === 0 && filtered
   const actionBusy = busyId !== null
@@ -256,10 +266,26 @@ export function InvoicesPage(): React.JSX.Element {
     if (!window.api?.invoices) return
     setBusyId(invoice.id)
     try {
-      const exported = await window.api.invoices.exportPdf({ id: invoice.id, hideRates: false })
-      if (exported) showAlert('Invoice PDF exported successfully.', 'Success', 'success')
+      const exported = await window.api.invoices.exportPdf({ id: invoice.id })
+      if (exported.saved) {
+        showAlert(`Saved ${exported.filename}`, 'Success', 'success', [
+          {
+            label: 'Open file',
+            onClick: () => void window.api?.settings.openPath(exported.filePath)
+          },
+          {
+            label: 'Open folder',
+            onClick: () => void window.api?.settings.showInFolder(exported.filePath)
+          }
+        ])
+      }
     } catch (error) {
-      showAlert(ipcErrorMessage(error), 'Invoice needs attention', 'error')
+      showAlert(ipcErrorMessage(error), 'Could not export PDF', 'error', [
+        {
+          label: 'Change exports folder',
+          onClick: () => navigate('/settings')
+        }
+      ])
     } finally {
       setBusyId(null)
     }
@@ -296,6 +322,20 @@ export function InvoicesPage(): React.JSX.Element {
             ]}
             onChange={(next) => setStatusFilter(next as InvoiceListStatus)}
           />
+          <SearchableSelect
+            className={styles.filterSelect}
+            value={paymentStatusFilter}
+            ariaLabel="Filter by payment status"
+            placeholder="Payment"
+            searchPlaceholder="Search payment status"
+            options={[
+              { value: 'all', label: 'All payments' },
+              { value: 'unpaid', label: 'Unpaid' },
+              { value: 'partial', label: 'Partial' },
+              { value: 'paid', label: 'Paid' }
+            ]}
+            onChange={(next) => setPaymentStatusFilter(next as InvoicePaymentStatusFilter)}
+          />
         </div>
         <Button
           variant="primary"
@@ -331,7 +371,14 @@ export function InvoicesPage(): React.JSX.Element {
                   <th className={styles.num} scope="col">
                     Total
                   </th>
+                  <th className={styles.num} scope="col">
+                    Paid
+                  </th>
+                  <th className={styles.num} scope="col">
+                    Due
+                  </th>
                   <th scope="col">Status</th>
+                  <th scope="col">Payment</th>
                   <th className={styles.actionsCol} scope="col">
                     Actions
                   </th>
@@ -369,10 +416,29 @@ export function InvoicesPage(): React.JSX.Element {
                       <td>{invoice.number ?? 'Draft'}</td>
                       <td>{invoice.client_name}</td>
                       <td className={styles.num}>{formatRupees(invoice.total)}</td>
+                      <td className={styles.num}>{formatRupees(invoice.paid)}</td>
+                      <td className={styles.num}>{formatRupees(invoice.due)}</td>
                       <td>
                         <span className={statusClass(invoice.status)}>
                           {statusLabel(invoice.status)}
                         </span>
+                      </td>
+                      <td>
+                        {invoice.status === 'issued' ? (
+                          <span
+                            className={
+                              invoice.payment_status === 'paid'
+                                ? styles.badgePaid
+                                : invoice.payment_status === 'partial'
+                                  ? styles.badgePartial
+                                  : styles.badgeUnpaid
+                            }
+                          >
+                            {paymentStatusLabel(invoice.payment_status)}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className={styles.actionsCol} onClick={stopRowActivation}>
                         <div className={styles.actions}>
@@ -448,6 +514,7 @@ export function InvoicesPage(): React.JSX.Element {
           title={alert.title}
           message={alert.message}
           tone={alert.tone}
+          actions={alert.actions}
           onClose={() => setAlert(null)}
         />
       ) : null}

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import type Database from 'better-sqlite3'
 import { invoiceTotalPaisa, lineTotalPaisa } from '../../../core/money'
+import { invoicePaidAndDue } from '../../../core/payments'
 import {
   INVOICE_IMAGE_NAME,
   type InvoiceDetail,
@@ -11,6 +12,11 @@ import {
   type SaveInvoiceInput
 } from '../../../shared/invoices'
 import { deleteStoredImage, storedImageExists } from '../../files/images'
+import {
+  countActivePaymentsForInvoice,
+  listPaymentsForInvoice,
+  sumActivePaymentsForInvoice
+} from '../payments/service'
 
 type InvoiceRow = {
   id: string
@@ -69,27 +75,34 @@ function mapLine(row: LineRow): InvoiceLine {
   }
 }
 
-function mapSummary(row: InvoiceRow): InvoiceSummary {
+function mapSummary(row: InvoiceRow, paid: number): InvoiceSummary {
+  const status = asStatus(row.status)
+  const money = invoicePaidAndDue(status, row.total, paid)
   return {
     id: row.id,
     number: row.number,
     client_id: row.client_id,
     client_name: row.client_name,
     invoice_date: row.invoice_date,
-    status: asStatus(row.status),
+    status,
     total: row.total,
+    paid: money.paid,
+    due: money.due,
+    payment_status: money.paymentStatus,
     created_at: row.created_at,
     updated_at: row.updated_at
   }
 }
 
-function mapDetail(row: InvoiceRow, lines: LineRow[]): InvoiceDetail {
+function mapDetail(db: Database.Database, row: InvoiceRow, lines: LineRow[]): InvoiceDetail {
+  const paid = sumActivePaymentsForInvoice(db, row.id)
   return {
-    ...mapSummary(row),
+    ...mapSummary(row, paid),
     client_phone: row.client_phone,
     void_reason: row.void_reason,
     issued_at: row.issued_at,
-    lines: lines.map(mapLine)
+    lines: lines.map(mapLine),
+    payments: listPaymentsForInvoice(db, row.id)
   }
 }
 
@@ -116,7 +129,7 @@ function listLineRows(db: Database.Database, invoiceId: string): LineRow[] {
 export function getInvoice(db: Database.Database, id: string): InvoiceDetail | null {
   const row = getInvoiceRow(db, id)
   if (!row) return null
-  return mapDetail(row, listLineRows(db, id))
+  return mapDetail(db, row, listLineRows(db, id))
 }
 
 export function listInvoices(db: Database.Database, params: ListInvoicesParams): InvoiceSummary[] {
@@ -152,7 +165,15 @@ export function listInvoices(db: Database.Database, params: ListInvoicesParams):
        ORDER BY i.created_at DESC, i.id DESC`
     )
     .all(...values) as InvoiceRow[]
-  return rows.map(mapSummary)
+
+  const paymentFilter = params.payment_status ?? 'all'
+  const summaries = rows.map((row) => {
+    const paid = sumActivePaymentsForInvoice(db, row.id)
+    return mapSummary(row, paid)
+  })
+
+  if (paymentFilter === 'all') return summaries
+  return summaries.filter((invoice) => invoice.payment_status === paymentFilter)
 }
 
 function imagesToRemove(
@@ -172,10 +193,11 @@ function imagesToRemove(
 }
 
 function deleteUnusedImages(db: Database.Database, filenames: readonly string[]): void {
-  const used = db.prepare('SELECT 1 FROM invoice_lines WHERE image_path = ?')
+  const usedLine = db.prepare('SELECT 1 FROM invoice_lines WHERE image_path = ?')
+  const usedPayment = db.prepare('SELECT 1 FROM payments WHERE attachment_path = ?')
   for (const filename of filenames) {
     if (!INVOICE_IMAGE_NAME.test(filename)) continue
-    if (used.get(filename)) continue
+    if (usedLine.get(filename) || usedPayment.get(filename)) continue
     try {
       deleteStoredImage(filename)
     } catch (error) {
@@ -302,13 +324,14 @@ export function saveInvoice(db: Database.Database, input: SaveInvoiceInput): Inv
 
 function nextInvoiceNumber(db: Database.Database): string {
   const row = db.prepare(`SELECT value FROM app_meta WHERE key = 'invoice_counter'`).get() as
-    { value: string } | undefined
+    | { value: string }
+    | undefined
   if (!row || !/^\d+$/.test(row.value)) throw new Error('Invoice counter is invalid')
   const current = Number(row.value)
   if (!Number.isSafeInteger(current)) throw new Error('Invoice counter is invalid')
   const next = current + 1
   db.prepare(`UPDATE app_meta SET value = ? WHERE key = 'invoice_counter'`).run(String(next))
-  return `BS-${String(next).padStart(4, '0')}`
+  return `INV-${String(next).padStart(4, '0')}`
 }
 
 export function issueInvoice(db: Database.Database, id: string): InvoiceDetail {
@@ -344,6 +367,9 @@ export function reopenInvoice(db: Database.Database, id: string): InvoiceDetail 
   const invoice = getInvoiceRow(db, id)
   if (!invoice) throw new Error('Invoice not found')
   if (invoice.status !== 'issued') throw new Error('Only issued invoices can be reopened')
+  if (countActivePaymentsForInvoice(db, id) > 0) {
+    throw new Error('Void its payments first')
+  }
   const now = new Date().toISOString()
   const updated = db
     .prepare(
@@ -364,6 +390,9 @@ export function voidInvoice(db: Database.Database, id: string, reason: string): 
   const invoice = getInvoiceRow(db, id)
   if (!invoice) throw new Error('Invoice not found')
   if (invoice.status !== 'issued') throw new Error('Only issued invoices can be voided')
+  if (countActivePaymentsForInvoice(db, id) > 0) {
+    throw new Error('Void its payments first')
+  }
   const now = new Date().toISOString()
   const updated = db
     .prepare(

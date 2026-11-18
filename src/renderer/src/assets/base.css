@@ -39,6 +39,8 @@
   --color-accent-soft: rgba(142, 162, 240, 0.16);
   --color-tooltip-bg: #f4f4f5;
   --color-tooltip-text: #1b1b1f;
+  --color-scrollbar: rgba(255, 255, 255, 0.18);
+  --color-scrollbar-hover: rgba(255, 255, 255, 0.28);
 
   --sidebar-width: 240px;
   --sidebar-rail: 56px;
@@ -75,6 +77,43 @@
 
 ul {
   list-style: none;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 }
 
 button,

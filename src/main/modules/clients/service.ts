@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto'
 import type Database from 'better-sqlite3'
+import { clientBalancePaisa, invoicePaidAndDue } from '../../../core/payments'
 import type { Client, ClientListStatus, ListClientsParams } from '../../../shared/clients'
+import { sumActivePaymentsForInvoice } from '../payments/service'
 
 type ClientRow = {
   id: string
@@ -11,12 +13,29 @@ type ClientRow = {
   updated_at: string
 }
 
-function mapRow(row: ClientRow): Client {
+type IssuedInvoiceRow = {
+  id: string
+  total: number
+}
+
+function clientBalance(db: Database.Database, clientId: string): number {
+  const invoices = db
+    .prepare(`SELECT id, total FROM invoices WHERE client_id = ? AND status = 'issued'`)
+    .all(clientId) as IssuedInvoiceRow[]
+  const dues = invoices.map((invoice) => {
+    const paid = sumActivePaymentsForInvoice(db, invoice.id)
+    return invoicePaidAndDue('issued', invoice.total, paid).due
+  })
+  return clientBalancePaisa(dues)
+}
+
+function mapRow(db: Database.Database, row: ClientRow): Client {
   return {
     id: row.id,
     name: row.name,
     phone: row.phone,
     status: row.status,
+    balance: clientBalance(db, row.id),
     created_at: row.created_at,
     updated_at: row.updated_at
   }
@@ -48,12 +67,12 @@ export function listClients(db: Database.Database, params: ListClientsParams): C
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
   const sql = `SELECT * FROM clients ${where} ORDER BY LOWER(name) ASC`
   const rows = db.prepare(sql).all(...values) as ClientRow[]
-  return rows.map(mapRow)
+  return rows.map((row) => mapRow(db, row))
 }
 
 export function getClient(db: Database.Database, id: string): Client | null {
   const row = getRow(db, id)
-  return row ? mapRow(row) : null
+  return row ? mapRow(db, row) : null
 }
 
 export function createClient(

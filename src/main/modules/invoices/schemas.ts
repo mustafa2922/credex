@@ -42,7 +42,8 @@ export const listInvoicesSchema = z.object({
     .optional()
     .transform((value) => (value === '' ? undefined : value)),
   status: z.enum(['draft', 'issued', 'void', 'all']).optional().default('all'),
-  client_id: z.string().uuid('Invalid client id').optional()
+  client_id: z.string().uuid('Invalid client id').optional(),
+  payment_status: z.enum(['unpaid', 'partial', 'paid', 'all']).optional().default('all')
 })
 
 export const voidInvoiceSchema = z.object({
