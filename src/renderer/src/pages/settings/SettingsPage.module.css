@@ -1,3 +1,29 @@
+.pageHeading {
+  margin-bottom: 18px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.pageSubtitle {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .card {
   width: 100%;
   padding: 16px 18px;
@@ -24,6 +50,44 @@
 
 .hint {
   margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 18px;
+}
+
+.metaRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 8px 16px;
+  align-items: baseline;
+}
+
+.metaRow dt {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.metaRow dd {
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status {
+  min-height: 1.4em;
+  margin-top: 12px;
   color: var(--color-text-muted);
   font-size: 13px;
 }

@@ -1,3 +1,23 @@
+.pageHeading {
+  margin-bottom: 18px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.pageSubtitle {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -5,6 +25,24 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.stamp {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.25;
+}
+
+.stampDate {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.stampTime {
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .filters {
@@ -36,8 +74,11 @@
   outline-offset: 1px;
 }
 
-.select {
-  min-width: 120px;
+.select,
+.filterSelect {
+  width: auto;
+  min-width: 140px;
+  flex: 0 0 auto;
 }
 
 .card {
@@ -115,6 +156,108 @@
 .badgeVoid {
   color: #e8a0a0;
   background: rgba(180, 100, 100, 0.16);
+}
+
+.actionsCol {
+  width: 120px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.actionButton:hover:not(:disabled) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.actionButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.modalTitle {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modalMessage {
+  margin: 0 0 16px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modalField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modalLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.modalTextarea,
+.modalTextareaInvalid {
+  width: 100%;
+  min-height: 84px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  font-size: 13px;
+  color: inherit;
+  resize: vertical;
+}
+
+.modalTextarea:focus,
+.modalTextareaInvalid:focus {
+  outline: 2px solid var(--color-accent-soft);
+  outline-offset: 1px;
+}
+
+.modalTextareaInvalid {
+  border-color: #c96a6a;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.fieldError {
+  color: #e8a0a0;
+  font-size: 12px;
 }
 
 .stateMessage {

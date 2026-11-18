@@ -43,6 +43,7 @@ const invoices = {
     ipcRenderer.invoke('invoices:void', input),
   deleteDraft: (id: string): Promise<void> => ipcRenderer.invoke('invoices:deleteDraft', id),
   pickImage: (): Promise<string | null> => ipcRenderer.invoke('invoices:pickImage'),
+  saveImage: (bytes: Uint8Array): Promise<string> => ipcRenderer.invoke('invoices:saveImage', bytes),
   exportPdf: (input: ExportInvoicePdfInput): Promise<boolean> =>
     ipcRenderer.invoke('invoices:exportPdf', input)
 }

@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { formatRupees } from '../../../../core/money'
 import type { InvoiceListStatus, InvoiceStatus, InvoiceSummary } from '../../../../shared/invoices'
+import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
+import { AlertToast, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
+import { Modal } from '@renderer/components/ui/Modal'
+import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
 import styles from './InvoicesPage.module.css'
 
 function ipcErrorMessage(error: unknown): string {
@@ -13,7 +17,7 @@ function ipcErrorMessage(error: unknown): string {
 
 function statusLabel(status: InvoiceStatus): string {
   if (status === 'issued') return 'Issued'
-  if (status === 'void') return 'Void'
+  if (status === 'void') return 'Trash'
   return 'Draft'
 }
 
@@ -23,6 +27,128 @@ function statusClass(status: InvoiceStatus): string {
   return styles.badgeDraft
 }
 
+function formatInvoiceStamp(value: string): { date: string; time: string } | null {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return {
+    date: date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }),
+    time: date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    })
+  }
+}
+
+type AlertState = {
+  id: number
+  title: string
+  message: string
+  tone: AlertTone
+}
+
+type TrashModalProps = {
+  invoice: InvoiceSummary
+  busy: boolean
+  onClose: () => void
+  onConfirm: (reason: string) => Promise<void>
+}
+
+function TrashModal({ invoice, busy, onClose, onConfirm }: TrashModalProps): React.JSX.Element {
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+
+  async function handleSubmit(event: FormEvent): Promise<void> {
+    event.preventDefault()
+    const trimmed = reason.trim()
+    if (!trimmed) {
+      setError('A reason is required')
+      return
+    }
+    if (trimmed.length > 200) {
+      setError('Reason must be at most 200 characters')
+      return
+    }
+    setError('')
+    await onConfirm(trimmed)
+  }
+
+  return (
+    <Modal labelledBy="trash-invoice-title" busy={busy} onClose={onClose}>
+      <h2 id="trash-invoice-title" className={styles.modalTitle}>
+        Trash invoice
+      </h2>
+      <p className={styles.modalMessage}>
+        Move {invoice.number ?? 'this draft'} to trash? This can be reviewed later in Trash.
+      </p>
+      <form className={styles.modalForm} onSubmit={(event) => void handleSubmit(event)} noValidate>
+        <label className={styles.modalField}>
+          <span className={styles.modalLabel}>Reason</span>
+          <textarea
+            className={error ? styles.modalTextareaInvalid : styles.modalTextarea}
+            value={reason}
+            disabled={busy}
+            rows={3}
+            onChange={(event) => {
+              setReason(event.target.value)
+              setError('')
+            }}
+          />
+          {error ? <span className={styles.fieldError}>{error}</span> : null}
+        </label>
+        <div className={styles.modalActions}>
+          <Button type="button" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={busy}>
+            Trash
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+type ConfirmModalProps = {
+  title: string
+  message: string
+  confirmLabel: string
+  busy: boolean
+  onClose: () => void
+  onConfirm: () => void | Promise<void>
+}
+
+function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  busy,
+  onClose,
+  onConfirm
+}: ConfirmModalProps): React.JSX.Element {
+  return (
+    <Modal labelledBy="invoices-confirm-title" busy={busy} onClose={onClose}>
+      <h2 id="invoices-confirm-title" className={styles.modalTitle}>
+        {title}
+      </h2>
+      <p className={styles.modalMessage}>{message}</p>
+      <div className={styles.modalActions}>
+        <Button type="button" disabled={busy} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="button" variant="primary" disabled={busy} onClick={() => void onConfirm()}>
+          {confirmLabel}
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 export function InvoicesPage(): React.JSX.Element {
   const navigate = useNavigate()
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([])
@@ -30,50 +156,122 @@ export function InvoicesPage(): React.JSX.Element {
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<InvoiceListStatus>('all')
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [trashTarget, setTrashTarget] = useState<InvoiceSummary | null>(null)
+  const [reopenTarget, setReopenTarget] = useState<InvoiceSummary | null>(null)
+  const [alert, setAlert] = useState<AlertState | null>(null)
+  const alertIdRef = useRef(0)
   const requestId = useRef(0)
 
-  useEffect(() => {
+  const showAlert = useCallback(
+    (message: string, title: string, tone: AlertTone): void => {
+      alertIdRef.current += 1
+      setAlert({ id: alertIdRef.current, title, message, tone })
+    },
+    []
+  )
+
+  const refresh = useCallback(async (): Promise<void> => {
     const id = requestId.current + 1
     requestId.current = id
-    let cancelled = false
-
-    async function load(): Promise<void> {
-      try {
-        const invoicesApi = window.api?.invoices
-        const rows = invoicesApi
-          ? await invoicesApi.list({
-              search: search.trim() || undefined,
-              status: statusFilter
-            })
-          : await Promise.reject(new Error('Invoices are unavailable'))
-        if (cancelled || id !== requestId.current) return
-        setInvoices(rows)
-        setLoadError('')
-      } catch (error) {
-        if (cancelled || id !== requestId.current) return
-        setLoadError(ipcErrorMessage(error))
-        setInvoices([])
-      } finally {
-        if (!cancelled && id === requestId.current) setLoading(false)
-      }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
+    try {
+      const invoicesApi = window.api?.invoices
+      const rows = invoicesApi
+        ? await invoicesApi.list({
+            search: search.trim() || undefined,
+            status: statusFilter
+          })
+        : await Promise.reject(new Error('Invoices are unavailable'))
+      if (id !== requestId.current) return
+      setInvoices(rows)
+      setLoadError('')
+    } catch (error) {
+      if (id !== requestId.current) return
+      setLoadError(ipcErrorMessage(error))
+      setInvoices([])
+    } finally {
+      if (id === requestId.current) setLoading(false)
     }
   }, [search, statusFilter])
+
+  useEffect(() => {
+    setLoading(true)
+    void refresh()
+  }, [refresh])
 
   const filtered = search.trim() !== '' || statusFilter !== 'all'
   const showEmpty = !loading && !loadError && invoices.length === 0 && !filtered
   const showNoResults = !loading && !loadError && invoices.length === 0 && filtered
+  const actionBusy = busyId !== null
 
   function openInvoice(id: string): void {
     navigate(`/invoices/${id}`)
   }
 
+  function stopRowActivation(event: MouseEvent): void {
+    event.stopPropagation()
+  }
+
+  async function handleTrash(reason: string): Promise<void> {
+    if (!trashTarget || !window.api?.invoices) return
+    setBusyId(trashTarget.id)
+    try {
+      const voided = await window.api.invoices.void({ id: trashTarget.id, reason })
+      setTrashTarget(null)
+      await refresh()
+      showAlert(
+        voided.number ? `Invoice ${voided.number} moved to trash.` : 'Invoice moved to trash.',
+        'Success',
+        'success'
+      )
+    } catch (error) {
+      showAlert(ipcErrorMessage(error), 'Invoice needs attention', 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleReopen(): Promise<void> {
+    if (!reopenTarget || !window.api?.invoices) return
+    setBusyId(reopenTarget.id)
+    try {
+      const reopened = await window.api.invoices.reopen(reopenTarget.id)
+      setReopenTarget(null)
+      await refresh()
+      showAlert(
+        reopened.number
+          ? `Invoice ${reopened.number} reopened as a draft.`
+          : 'Invoice reopened as a draft.',
+        'Success',
+        'success'
+      )
+    } catch (error) {
+      showAlert(ipcErrorMessage(error), 'Invoice needs attention', 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleExport(invoice: InvoiceSummary): Promise<void> {
+    if (!window.api?.invoices) return
+    setBusyId(invoice.id)
+    try {
+      const exported = await window.api.invoices.exportPdf({ id: invoice.id, hideRates: false })
+      if (exported) showAlert('Invoice PDF exported successfully.', 'Success', 'success')
+    } catch (error) {
+      showAlert(ipcErrorMessage(error), 'Invoice needs attention', 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
-    <Page fullWidth>
+    <Page fullWidth hideDescription>
+      <div className={styles.pageHeading}>
+        <h2 className={styles.pageTitle}>Sales invoice</h2>
+        <p className={styles.pageSubtitle}>Create and review sales invoices.</p>
+      </div>
+
       <div className={styles.toolbar}>
         <div className={styles.filters}>
           <input
@@ -84,17 +282,20 @@ export function InvoicesPage(): React.JSX.Element {
             onChange={(event) => setSearch(event.target.value)}
             aria-label="Search invoices"
           />
-          <select
-            className={styles.select}
+          <SearchableSelect
+            className={styles.filterSelect}
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as InvoiceListStatus)}
-            aria-label="Filter by status"
-          >
-            <option value="all">All</option>
-            <option value="draft">Draft</option>
-            <option value="issued">Issued</option>
-            <option value="void">Void</option>
-          </select>
+            ariaLabel="Filter by status"
+            placeholder="Status"
+            searchPlaceholder="Search status"
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'draft', label: 'Draft' },
+              { value: 'issued', label: 'Issued' },
+              { value: 'void', label: 'Trash' }
+            ]}
+            onChange={(next) => setStatusFilter(next as InvoiceListStatus)}
+          />
         </div>
         <Button
           variant="primary"
@@ -124,45 +325,132 @@ export function InvoicesPage(): React.JSX.Element {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th scope="col">Number</th>
                   <th scope="col">Date</th>
+                  <th scope="col">Number</th>
                   <th scope="col">Client</th>
                   <th className={styles.num} scope="col">
                     Total
                   </th>
                   <th scope="col">Status</th>
+                  <th className={styles.actionsCol} scope="col">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => (
-                  <tr
-                    key={invoice.id}
-                    className={styles.clickable}
-                    tabIndex={0}
-                    onClick={() => openInvoice(invoice.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        openInvoice(invoice.id)
-                      }
-                    }}
-                  >
-                    <td>{invoice.number ?? 'Draft'}</td>
-                    <td>{invoice.invoice_date}</td>
-                    <td>{invoice.client_name}</td>
-                    <td className={styles.num}>{formatRupees(invoice.total)}</td>
-                    <td>
-                      <span className={statusClass(invoice.status)}>
-                        {statusLabel(invoice.status)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {invoices.map((invoice) => {
+                  const stamp = formatInvoiceStamp(invoice.created_at)
+                  const issued = invoice.status === 'issued'
+                  const exportable = invoice.status === 'issued' || invoice.status === 'void'
+                  const rowBusy = busyId === invoice.id
+                  return (
+                    <tr
+                      key={invoice.id}
+                      className={styles.clickable}
+                      tabIndex={0}
+                      onClick={() => openInvoice(invoice.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          openInvoice(invoice.id)
+                        }
+                      }}
+                    >
+                      <td>
+                        {stamp ? (
+                          <div className={styles.stamp}>
+                            <span className={styles.stampDate}>{stamp.date}</span>
+                            <span className={styles.stampTime}>{stamp.time}</span>
+                          </div>
+                        ) : (
+                          invoice.invoice_date
+                        )}
+                      </td>
+                      <td>{invoice.number ?? 'Draft'}</td>
+                      <td>{invoice.client_name}</td>
+                      <td className={styles.num}>{formatRupees(invoice.total)}</td>
+                      <td>
+                        <span className={statusClass(invoice.status)}>
+                          {statusLabel(invoice.status)}
+                        </span>
+                      </td>
+                      <td className={styles.actionsCol} onClick={stopRowActivation}>
+                        <div className={styles.actions}>
+                          <button
+                            type="button"
+                            className={styles.actionButton}
+                            disabled={!issued || actionBusy}
+                            aria-label={`Trash ${invoice.number ?? 'draft'}`}
+                            title="Trash"
+                            onClick={() => setTrashTarget(invoice)}
+                          >
+                            <Icon name="trash" width={15} height={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.actionButton}
+                            disabled={!issued || actionBusy}
+                            aria-label={`Reopen ${invoice.number ?? 'invoice'}`}
+                            title="Reopen"
+                            onClick={() => setReopenTarget(invoice)}
+                          >
+                            <Icon name="reopen" width={15} height={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.actionButton}
+                            disabled={!exportable || actionBusy}
+                            aria-label={`Export ${invoice.number ?? 'invoice'}`}
+                            title="Export PDF"
+                            onClick={() => void handleExport(invoice)}
+                          >
+                            <Icon name="export" width={15} height={15} />
+                            {rowBusy ? <span className={styles.visuallyHidden}>Working…</span> : null}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         ) : null}
       </section>
+
+      {trashTarget ? (
+        <TrashModal
+          invoice={trashTarget}
+          busy={busyId === trashTarget.id}
+          onClose={() => {
+            if (busyId !== trashTarget.id) setTrashTarget(null)
+          }}
+          onConfirm={handleTrash}
+        />
+      ) : null}
+
+      {reopenTarget ? (
+        <ConfirmModal
+          title="Reopen invoice"
+          message={`Reopen ${reopenTarget.number ?? 'this invoice'} as a draft?`}
+          confirmLabel="Reopen"
+          busy={busyId === reopenTarget.id}
+          onClose={() => {
+            if (busyId !== reopenTarget.id) setReopenTarget(null)
+          }}
+          onConfirm={handleReopen}
+        />
+      ) : null}
+
+      {alert ? (
+        <AlertToast
+          key={alert.id}
+          title={alert.title}
+          message={alert.message}
+          tone={alert.tone}
+          onClose={() => setAlert(null)}
+        />
+      ) : null}
     </Page>
   )
 }

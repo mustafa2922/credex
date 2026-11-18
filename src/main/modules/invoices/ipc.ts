@@ -2,7 +2,7 @@ import { BrowserWindow, ipcMain } from 'electron'
 import type Database from 'better-sqlite3'
 import { ZodError } from 'zod'
 import type { InvoiceDetail, InvoiceSummary } from '../../../shared/invoices'
-import { pickInvoiceImage } from '../../files/images'
+import { pickInvoiceImage, storeInvoiceImageFromBytes } from '../../files/images'
 import { exportInvoicePdf } from './pdf'
 import {
   exportInvoiceSchema,
@@ -112,6 +112,16 @@ export function registerInvoicesIpc(db: Database.Database): void {
       }
       throw error
     }
+  })
+
+  ipcMain.handle('invoices:saveImage', (_, raw: unknown): string => {
+    let bytes: Uint8Array | null = null
+    if (raw instanceof Uint8Array) bytes = raw
+    else if (raw instanceof ArrayBuffer) bytes = new Uint8Array(raw)
+    if (!bytes || bytes.byteLength === 0) {
+      throw new Error('Could not read that image')
+    }
+    return storeInvoiceImageFromBytes(bytes)
   })
 
   ipcMain.handle('invoices:exportPdf', async (event, raw: unknown): Promise<boolean> => {

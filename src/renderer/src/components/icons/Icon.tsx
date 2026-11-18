@@ -10,10 +10,17 @@ export type IconName =
   | 'edit'
   | 'pause'
   | 'check'
+  | 'chevronDown'
+  | 'chevronUp'
+  | 'chevronLeft'
   | 'minimize'
   | 'maximize'
   | 'restore'
   | 'close'
+  | 'trash'
+  | 'plus'
+  | 'reopen'
+  | 'export'
 
 type IconProps = SVGProps<SVGSVGElement> & {
   name: IconName
@@ -78,6 +85,9 @@ const glyphs: Record<IconName, ReactNode> = {
       <path d="m8.5 12 2.5 2.5 4.5-5" />
     </>
   ),
+  chevronDown: <path d="m7 10 5 5 5-5" />,
+  chevronUp: <path d="m7 14 5-5 5 5" />,
+  chevronLeft: <path d="m14 6-6 6 6 6" />,
   minimize: <path d="M5 12h14" />,
   maximize: <rect x="5.5" y="5.5" width="13" height="13" rx="1" />,
   restore: (
@@ -90,6 +100,36 @@ const glyphs: Record<IconName, ReactNode> = {
     <>
       <path d="M6 6l12 12" />
       <path d="M18 6 6 18" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" />
+      <path d="M6.5 7l.7 11.2A1.5 1.5 0 0 0 8.7 19.5h6.6a1.5 1.5 0 0 0 1.5-1.3L17.5 7" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </>
+  ),
+  plus: (
+    <>
+      <path d="M12 6v12" />
+      <path d="M6 12h12" />
+    </>
+  ),
+  reopen: (
+    <>
+      <path d="M3.5 12a8.5 8.5 0 0 1 14.5-6" />
+      <path d="M18 3.5v4h-4" />
+      <path d="M20.5 12a8.5 8.5 0 0 1-14.5 6" />
+      <path d="M6 20.5v-4h4" />
+    </>
+  ),
+  export: (
+    <>
+      <path d="M12 4v10" />
+      <path d="m8.5 10.5 3.5 3.5 3.5-3.5" />
+      <path d="M5 18h14" />
     </>
   )
 }

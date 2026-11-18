@@ -4,6 +4,7 @@ import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
+import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
 import styles from './UnitsPage.module.css'
 
 type FormErrors = {
@@ -211,7 +212,12 @@ export function UnitsPage(): React.JSX.Element {
   }
 
   return (
-    <Page fullWidth>
+    <Page fullWidth hideDescription>
+      <div className={styles.pageHeading}>
+        <h2 className={styles.pageTitle}>Units</h2>
+        <p className={styles.pageSubtitle}>Create and review units.</p>
+      </div>
+
       <div className={styles.toolbar}>
         <div className={styles.filters}>
           <input
@@ -222,16 +228,19 @@ export function UnitsPage(): React.JSX.Element {
             onChange={(event) => setSearch(event.target.value)}
             aria-label="Search units"
           />
-          <select
-            className={styles.select}
+          <SearchableSelect
+            className={styles.filterSelect}
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as UnitListStatus)}
-            aria-label="Filter by status"
-          >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="all">All</option>
-          </select>
+            ariaLabel="Filter by status"
+            placeholder="Status"
+            searchPlaceholder="Search status"
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+              { value: 'all', label: 'All' }
+            ]}
+            onChange={(next) => setStatusFilter(next as UnitListStatus)}
+          />
         </div>
         <Button
           variant="primary"

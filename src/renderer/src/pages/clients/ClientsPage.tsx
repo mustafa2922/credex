@@ -4,6 +4,7 @@ import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
+import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
 import styles from './ClientsPage.module.css'
 
 const phoneChars = /^[\d\s+\-()]*$/
@@ -231,7 +232,12 @@ export function ClientsPage(): React.JSX.Element {
   }
 
   return (
-    <Page fullWidth>
+    <Page fullWidth hideDescription>
+      <div className={styles.pageHeading}>
+        <h2 className={styles.pageTitle}>Clients</h2>
+        <p className={styles.pageSubtitle}>Create and review clients.</p>
+      </div>
+
       <div className={styles.toolbar}>
         <div className={styles.filters}>
           <input
@@ -242,16 +248,19 @@ export function ClientsPage(): React.JSX.Element {
             onChange={(event) => setSearch(event.target.value)}
             aria-label="Search clients"
           />
-          <select
-            className={styles.select}
+          <SearchableSelect
+            className={styles.filterSelect}
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as ClientListStatus)}
-            aria-label="Filter by status"
-          >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="all">All</option>
-          </select>
+            ariaLabel="Filter by status"
+            placeholder="Status"
+            searchPlaceholder="Search status"
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+              { value: 'all', label: 'All' }
+            ]}
+            onChange={(next) => setStatusFilter(next as ClientListStatus)}
+          />
         </div>
         <Button variant="primary" disabled={!window.api?.clients} onClick={() => setModal({ mode: 'create' })}>
           Add client

@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type FormEvent
+} from 'react'
 import { Link, useBlocker, useLocation, useNavigate, useParams } from 'react-router'
 import {
+  formatPaisa,
   formatQuantityThousandths,
   formatRatePaisa,
-  formatRupees,
   invoiceTotalPaisa,
   lineTotalPaisa,
   parseQuantityThousandths,
@@ -22,8 +29,10 @@ import {
 import type { Unit } from '../../../../shared/units'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
+import { AlertToast, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
+import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
 import styles from './InvoicePage.module.css'
 
 type LineDraft = {
@@ -71,8 +80,21 @@ function todayLocal(): string {
   return `${now.getFullYear()}-${month}-${day}`
 }
 
+function blankLine(): LineDraft {
+  return {
+    key: crypto.randomUUID(),
+    persisted: false,
+    name: '',
+    imagePath: null,
+    unitId: '',
+    unitName: '',
+    quantity: '',
+    rate: ''
+  }
+}
+
 function blankEditor(): EditorState {
-  return { clientId: '', invoiceDate: todayLocal(), lines: [] }
+  return { clientId: '', invoiceDate: todayLocal(), lines: [blankLine()] }
 }
 
 function emptyErrors(): EditorErrors {
@@ -84,10 +106,44 @@ function ipcErrorMessage(error: unknown): string {
   return 'Something went wrong'
 }
 
+function firstErrorMessage(errors: EditorErrors): string | null {
+  if (errors.form) return errors.form
+  if (errors.client) return errors.client
+  if (errors.date) return errors.date
+  for (const lineError of Object.values(errors.lines)) {
+    if (lineError.name) return lineError.name
+    if (lineError.unit) return lineError.unit
+    if (lineError.quantity) return lineError.quantity
+    if (lineError.rate) return lineError.rate
+    if (lineError.image) return lineError.image
+  }
+  return null
+}
+
 function readArrivalError(state: unknown): string {
   if (!state || typeof state !== 'object' || !('formError' in state)) return ''
   const message = (state as { formError?: unknown }).formError
   return typeof message === 'string' ? message : ''
+}
+
+type ArrivalToast = {
+  title: string
+  message: string
+  tone: AlertTone
+}
+
+function readArrivalToast(state: unknown): ArrivalToast | null {
+  if (!state || typeof state !== 'object' || !('toast' in state)) return null
+  const toast = (state as { toast?: unknown }).toast
+  if (!toast || typeof toast !== 'object') return null
+  const { title, message, tone } = toast as {
+    title?: unknown
+    message?: unknown
+    tone?: unknown
+  }
+  if (typeof title !== 'string' || typeof message !== 'string') return null
+  if (tone !== 'success' && tone !== 'error') return null
+  return { title, message, tone }
 }
 
 function toEditor(invoice: InvoiceDetail): EditorState {
@@ -109,7 +165,7 @@ function toEditor(invoice: InvoiceDetail): EditorState {
 
 function statusLabel(status: InvoiceStatus): string {
   if (status === 'issued') return 'Issued'
-  if (status === 'void') return 'Void'
+  if (status === 'void') return 'Trash'
   return 'Draft'
 }
 
@@ -119,25 +175,44 @@ function statusClass(status: InvoiceStatus): string {
   return styles.badgeDraft
 }
 
-function lineTotalText(line: LineDraft): string {
+function lineTotalAmount(line: LineDraft): string | null {
   try {
-    return formatRupees(
+    return formatPaisa(
       lineTotalPaisa(parseRatePaisa(line.rate), parseQuantityThousandths(line.quantity))
     )
   } catch {
-    return '—'
+    return null
   }
 }
 
-function invoiceTotalText(lines: LineDraft[]): string {
-  try {
-    const totals = lines.map((line) =>
-      lineTotalPaisa(parseRatePaisa(line.rate), parseQuantityThousandths(line.quantity))
-    )
-    return formatRupees(invoiceTotalPaisa(totals))
-  } catch {
-    return '—'
+function invoiceTotalAmount(lines: LineDraft[]): string | null {
+  const totals: number[] = []
+  for (const line of lines) {
+    try {
+      totals.push(
+        lineTotalPaisa(parseRatePaisa(line.rate), parseQuantityThousandths(line.quantity))
+      )
+    } catch {
+      // Skip incomplete rows; show the sum of complete ones.
+    }
   }
+  if (totals.length === 0) return lines.length === 0 ? formatPaisa(0) : null
+  return formatPaisa(invoiceTotalPaisa(totals))
+}
+
+function MoneyReadout({
+  amount,
+  emphasize = false
+}: {
+  amount: string | null
+  emphasize?: boolean
+}): React.JSX.Element {
+  return (
+    <div className={emphasize ? styles.moneyFieldStrong : styles.moneyField} aria-live="polite">
+      <span className={styles.moneyCurrency}>Rs</span>
+      <span className={amount ? styles.moneyAmount : styles.moneyAmountEmpty}>{amount ?? ''}</span>
+    </div>
+  )
 }
 
 function removedImages(lines: LineDraft[], discarded: string[]): string[] {
@@ -220,7 +295,7 @@ function VoidModal({ busy, onClose, onConfirm }: VoidModalProps): React.JSX.Elem
   return (
     <Modal labelledBy="void-invoice-title" busy={busy} onClose={onClose}>
       <h2 id="void-invoice-title" className={styles.modalTitle}>
-        Void invoice
+        Trash invoice
       </h2>
       <form className={styles.form} onSubmit={(event) => void handleSubmit(event)} noValidate>
         <label className={styles.field}>
@@ -241,7 +316,7 @@ function VoidModal({ busy, onClose, onConfirm }: VoidModalProps): React.JSX.Elem
             Cancel
           </Button>
           <Button type="submit" variant="primary" disabled={busy}>
-            Void
+            Trash
           </Button>
         </div>
       </form>
@@ -296,6 +371,7 @@ export function InvoicePage(): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
   const arrivalError = readArrivalError(location.state)
+  const arrivalToast = readArrivalToast(location.state)
   const [start] = useState(() => {
     const next = blankEditor()
     return { editor: next, baseline: JSON.stringify(next) }
@@ -315,6 +391,34 @@ export function InvoicePage(): React.JSX.Element {
   const [voidOpen, setVoidOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [exportError, setExportError] = useState('')
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  const [alert, setAlert] = useState<{
+    id: number
+    title: string
+    message: string
+    tone: AlertTone
+  } | null>(null)
+  const alertIdRef = useRef(0)
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  function showAlert(
+    message: string,
+    title = 'Invoice needs attention',
+    tone: AlertTone = 'error'
+  ): void {
+    alertIdRef.current += 1
+    setAlert({ id: alertIdRef.current, title, message, tone })
+  }
+
+  function showSuccess(message: string, title = 'Success'): void {
+    showAlert(message, title, 'success')
+  }
+
+  function publishErrors(nextErrors: EditorErrors, title = 'Invoice needs attention'): void {
+    setErrors(nextErrors)
+    const message = firstErrorMessage(nextErrors)
+    if (message) showAlert(message, title, 'error')
+  }
 
   const editable = !invoice || invoice.status === 'draft'
   const locked = !editable || busy
@@ -383,7 +487,13 @@ export function InvoicePage(): React.JSX.Element {
             setEditor(next)
             setBaseline(JSON.stringify(next))
           }
-          if (arrivalError) setErrors({ lines: {}, form: arrivalError })
+          if (arrivalError) publishErrors({ lines: {}, form: arrivalError })
+          else if (arrivalToast) {
+            showAlert(arrivalToast.message, arrivalToast.title, arrivalToast.tone)
+          }
+          if (arrivalError || arrivalToast) {
+            navigate(location.pathname, { replace: true, state: null })
+          }
         }
       } catch (error) {
         if (cancelled) return
@@ -426,19 +536,7 @@ export function InvoicePage(): React.JSX.Element {
   function addLine(): void {
     setEditor((current) => ({
       ...current,
-      lines: [
-        ...current.lines,
-        {
-          key: crypto.randomUUID(),
-          persisted: false,
-          name: '',
-          imagePath: null,
-          unitId: '',
-          unitName: '',
-          quantity: '',
-          rate: ''
-        }
-      ]
+      lines: [...current.lines, blankLine()]
     }))
   }
 
@@ -457,18 +555,30 @@ export function InvoicePage(): React.JSX.Element {
     updateLine(key, { imagePath: null })
   }
 
-  async function pickImage(key: string): Promise<void> {
-    if (!window.api?.invoices || locked) return
+  function isImageFile(file: File): boolean {
+    if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/webp') {
+      return true
+    }
+    return /\.(png|jpe?g|webp)$/i.test(file.name)
+  }
+
+  async function applyImageFile(key: string, file: File): Promise<void> {
+    if (!window.api?.invoices?.saveImage || locked) return
+    if (!isImageFile(file)) {
+      showAlert('Choose a PNG, JPG, or WebP image')
+      return
+    }
     const previous = editor.lines.find((line) => line.key === key)?.imagePath ?? null
     setBusy(true)
     try {
-      const filename = await window.api.invoices.pickImage()
-      if (!filename) return
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const filename = await window.api.invoices.saveImage(bytes)
       updateLine(key, { imagePath: filename })
       if (previous && previous !== filename) rememberRemoved(previous)
       forgetRemoved(filename)
+      setErrors((current) => ({ ...current, form: undefined }))
     } catch (error) {
-      setErrors((current) => ({ ...current, form: ipcErrorMessage(error) }))
+      showAlert(ipcErrorMessage(error))
     } finally {
       setBusy(false)
     }
@@ -541,7 +651,7 @@ export function InvoicePage(): React.JSX.Element {
     }
 
     if (nextErrors.client || nextErrors.date || Object.keys(nextErrors.lines).length > 0) {
-      setErrors(nextErrors)
+      publishErrors(nextErrors)
       return null
     }
     setErrors(emptyErrors())
@@ -563,7 +673,7 @@ export function InvoicePage(): React.JSX.Element {
       applyInvoice(saved)
       return saved
     } catch (error) {
-      setErrors({ lines: {}, form: ipcErrorMessage(error) })
+      publishErrors({ lines: {}, form: ipcErrorMessage(error) })
       return null
     } finally {
       setBusy(false)
@@ -572,9 +682,18 @@ export function InvoicePage(): React.JSX.Element {
 
   async function handleSave(): Promise<void> {
     const saved = await persist()
-    if (!saved || invoiceId) return
-    leavingRef.current = true
-    navigate(`/invoices/${saved.id}`, { replace: true })
+    if (!saved) return
+    const toast = {
+      title: 'Success',
+      message: 'Draft saved successfully.',
+      tone: 'success' as const
+    }
+    if (!invoiceId) {
+      leavingRef.current = true
+      navigate(`/invoices/${saved.id}`, { replace: true, state: { toast } })
+      return
+    }
+    showSuccess(toast.message, toast.title)
   }
 
   async function handleIssue(): Promise<void> {
@@ -584,9 +703,18 @@ export function InvoicePage(): React.JSX.Element {
     try {
       const issued = await window.api.invoices.issue(saved.id)
       applyInvoice(issued)
+      const toast = {
+        title: 'Success',
+        message: issued.number
+          ? `Invoice ${issued.number} issued successfully.`
+          : 'Invoice issued successfully.',
+        tone: 'success' as const
+      }
       if (!invoiceId) {
         leavingRef.current = true
-        navigate(`/invoices/${issued.id}`, { replace: true })
+        navigate(`/invoices/${issued.id}`, { replace: true, state: { toast } })
+      } else {
+        showSuccess(toast.message, toast.title)
       }
     } catch (error) {
       const message = ipcErrorMessage(error)
@@ -594,7 +722,7 @@ export function InvoicePage(): React.JSX.Element {
         leavingRef.current = true
         navigate(`/invoices/${saved.id}`, { replace: true, state: { formError: message } })
       } else {
-        setErrors({ lines: {}, form: message })
+        publishErrors({ lines: {}, form: message })
       }
     } finally {
       setBusy(false)
@@ -609,7 +737,7 @@ export function InvoicePage(): React.JSX.Element {
       leavingRef.current = true
       navigate('/invoices')
     } catch (error) {
-      setErrors({ lines: {}, form: ipcErrorMessage(error) })
+      publishErrors({ lines: {}, form: ipcErrorMessage(error) })
       setConfirm(null)
       setBusy(false)
     }
@@ -619,10 +747,16 @@ export function InvoicePage(): React.JSX.Element {
     if (!recordId || !window.api?.invoices) return
     setBusy(true)
     try {
-      applyInvoice(await window.api.invoices.reopen(recordId))
+      const reopened = await window.api.invoices.reopen(recordId)
+      applyInvoice(reopened)
       setConfirm(null)
+      showSuccess(
+        reopened.number
+          ? `Invoice ${reopened.number} reopened as a draft.`
+          : 'Invoice reopened as a draft.'
+      )
     } catch (error) {
-      setErrors({ lines: {}, form: ipcErrorMessage(error) })
+      publishErrors({ lines: {}, form: ipcErrorMessage(error) })
       setConfirm(null)
     } finally {
       setBusy(false)
@@ -633,7 +767,14 @@ export function InvoicePage(): React.JSX.Element {
     if (!recordId || !window.api?.invoices) return
     setBusy(true)
     try {
-      applyInvoice(await window.api.invoices.void({ id: recordId, reason }))
+      const voided = await window.api.invoices.void({ id: recordId, reason })
+      applyInvoice(voided)
+      setVoidOpen(false)
+      showSuccess(
+        voided.number ? `Invoice ${voided.number} moved to trash.` : 'Invoice moved to trash.'
+      )
+    } catch (error) {
+      publishErrors({ lines: {}, form: ipcErrorMessage(error) })
       setVoidOpen(false)
     } finally {
       setBusy(false)
@@ -645,8 +786,9 @@ export function InvoicePage(): React.JSX.Element {
     setBusy(true)
     setExportError('')
     try {
-      await window.api.invoices.exportPdf({ id: recordId, hideRates })
+      const exported = await window.api.invoices.exportPdf({ id: recordId, hideRates })
       setExportOpen(false)
+      if (exported) showSuccess('Invoice PDF exported successfully.')
     } catch (error) {
       setExportError(ipcErrorMessage(error))
     } finally {
@@ -670,9 +812,11 @@ export function InvoicePage(): React.JSX.Element {
   const status = invoice?.status ?? 'draft'
   const leaveBlocked = blocker.state === 'blocked' ? blocker : null
 
+  const pageTitle = invoiceId ? 'Sales invoice.' : 'Draft a sales invoice.'
+
   if (loading) {
     return (
-      <Page fullWidth>
+      <Page fullWidth hideDescription>
         <p className={styles.stateMessage}>Loading…</p>
       </Page>
     )
@@ -680,20 +824,26 @@ export function InvoicePage(): React.JSX.Element {
 
   if (loadError) {
     return (
-      <Page fullWidth>
-        <Link className={styles.back} to="/invoices">
-          All invoices
-        </Link>
+      <Page fullWidth hideDescription>
+        <div className={styles.pageIntro}>
+          <Link className={styles.backButton} to="/invoices" aria-label="Back to invoices">
+            <Icon name="chevronLeft" width={18} height={18} />
+          </Link>
+          <h2 className={styles.pageTitle}>{pageTitle}</h2>
+        </div>
         <p className={styles.formError}>{loadError}</p>
       </Page>
     )
   }
 
   return (
-    <Page fullWidth>
-      <Link className={styles.back} to="/invoices">
-        All invoices
-      </Link>
+    <Page fullWidth hideDescription>
+      <div className={styles.pageIntro}>
+        <Link className={styles.backButton} to="/invoices" aria-label="Back to invoices">
+          <Icon name="chevronLeft" width={18} height={18} />
+        </Link>
+        <h2 className={styles.pageTitle}>{pageTitle}</h2>
+      </div>
       <div className={styles.header}>
         <div className={styles.heading}>
           <h2 className={styles.number}>{invoice?.number ?? 'Draft'}</h2>
@@ -726,7 +876,7 @@ export function InvoicePage(): React.JSX.Element {
                 Reopen
               </Button>
               <Button type="button" disabled={busy} onClick={() => setVoidOpen(true)}>
-                Void
+                Trash
               </Button>
               <Button
                 type="button"
@@ -745,9 +895,8 @@ export function InvoicePage(): React.JSX.Element {
       </div>
 
       {invoice?.status === 'void' && invoice.void_reason ? (
-        <p className={styles.voidReason}>Voided: {invoice.void_reason}</p>
+        <p className={styles.voidReason}>Trashed: {invoice.void_reason}</p>
       ) : null}
-      {errors.form ? <p className={styles.formError}>{errors.form}</p> : null}
       {editable && clients.length === 0 ? (
         <p className={styles.hint}>Add an active client before saving an invoice.</p>
       ) : null}
@@ -755,23 +904,29 @@ export function InvoicePage(): React.JSX.Element {
       <div className={styles.fields}>
         <label className={styles.field}>
           <span className={styles.label}>Client</span>
-          <select
-            className={errors.client ? styles.selectInvalid : styles.select}
+          <SearchableSelect
             value={editor.clientId}
             disabled={locked}
-            onChange={(event) => {
-              setEditor((current) => ({ ...current, clientId: event.target.value }))
+            invalid={Boolean(errors.client)}
+            clearable
+            placeholder="Select a client"
+            searchPlaceholder="Search client name or phone"
+            ariaLabel="Client"
+            options={clientOptions.map((client) => {
+              const phone =
+                clients.find((item) => item.id === client.id)?.phone ??
+                (invoice?.client_id === client.id ? invoice.client_phone : null)
+              return {
+                value: client.id,
+                label: client.inactive ? `${client.name} (inactive)` : client.name,
+                description: phone ?? undefined
+              }
+            })}
+            onChange={(next) => {
+              setEditor((current) => ({ ...current, clientId: next }))
               setErrors((current) => ({ ...current, client: undefined, form: undefined }))
             }}
-          >
-            <option value="">Select a client</option>
-            {clientOptions.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.inactive ? `${client.name} (inactive)` : client.name}
-              </option>
-            ))}
-          </select>
-          {errors.client ? <span className={styles.fieldError}>{errors.client}</span> : null}
+          />
         </label>
         <label className={`${styles.field} ${styles.fieldNarrow}`}>
           <span className={styles.label}>Date</span>
@@ -785,7 +940,6 @@ export function InvoicePage(): React.JSX.Element {
               setErrors((current) => ({ ...current, date: undefined, form: undefined }))
             }}
           />
-          {errors.date ? <span className={styles.fieldError}>{errors.date}</span> : null}
         </label>
       </div>
 
@@ -798,19 +952,21 @@ export function InvoicePage(): React.JSX.Element {
             <thead>
               <tr>
                 <th scope="col">Image</th>
-                <th scope="col">Name</th>
-                <th scope="col">Unit</th>
+                <th scope="col">Design Name</th>
+                <th className={styles.unitCol} scope="col">
+                  Unit
+                </th>
                 <th className={styles.num} scope="col">
                   Qty
                 </th>
                 <th className={styles.num} scope="col">
-                  Rate
+                  Price
                 </th>
-                <th className={styles.num} scope="col">
+                <th className={`${styles.num} ${styles.totalCol}`} scope="col">
                   Total
                 </th>
                 {editable ? (
-                  <th scope="col">
+                  <th className={styles.removeCol} scope="col">
                     <span className={styles.visuallyHidden}>Remove</span>
                   </th>
                 ) : null}
@@ -823,7 +979,81 @@ export function InvoicePage(): React.JSX.Element {
                   <tr key={line.key}>
                     <td>
                       <div className={styles.imageCell}>
-                        {line.imagePath ? (
+                        {editable ? (
+                          <>
+                            <button
+                              type="button"
+                              className={[
+                                styles.imageDropzone,
+                                dragOverKey === line.key ? styles.imageDropzoneActive : null,
+                                lineError?.image ? styles.imageDropzoneInvalid : null
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              disabled={locked}
+                              aria-label={line.imagePath ? 'Change image' : 'Add image'}
+                              onClick={() => fileInputRefs.current[line.key]?.click()}
+                              onDragEnter={(event: DragEvent<HTMLButtonElement>) => {
+                                event.preventDefault()
+                                if (!locked) setDragOverKey(line.key)
+                              }}
+                              onDragOver={(event: DragEvent<HTMLButtonElement>) => {
+                                event.preventDefault()
+                                event.dataTransfer.dropEffect = 'copy'
+                                if (!locked) setDragOverKey(line.key)
+                              }}
+                              onDragLeave={(event: DragEvent<HTMLButtonElement>) => {
+                                if (event.currentTarget.contains(event.relatedTarget as Node)) {
+                                  return
+                                }
+                                setDragOverKey((current) => (current === line.key ? null : current))
+                              }}
+                              onDrop={(event: DragEvent<HTMLButtonElement>) => {
+                                event.preventDefault()
+                                setDragOverKey(null)
+                                const file = event.dataTransfer.files?.[0]
+                                if (file) void applyImageFile(line.key, file)
+                              }}
+                            >
+                              {line.imagePath ? (
+                                <img
+                                  className={styles.thumbImage}
+                                  src={invoiceImageUrl(line.imagePath)}
+                                  alt=""
+                                  draggable={false}
+                                />
+                              ) : (
+                                <Icon name="plus" width={16} height={16} />
+                              )}
+                            </button>
+                            <input
+                              ref={(node) => {
+                                fileInputRefs.current[line.key] = node
+                              }}
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                              className={styles.visuallyHidden}
+                              tabIndex={-1}
+                              disabled={locked}
+                              onChange={(event) => {
+                                const file = event.target.files?.[0]
+                                event.target.value = ''
+                                if (file) void applyImageFile(line.key, file)
+                              }}
+                            />
+                            {line.imagePath ? (
+                              <button
+                                type="button"
+                                className={styles.imageClear}
+                                disabled={locked}
+                                aria-label="Remove image"
+                                onClick={() => clearImage(line.key)}
+                              >
+                                <Icon name="close" width={12} height={12} />
+                              </button>
+                            ) : null}
+                          </>
+                        ) : line.imagePath ? (
                           <img
                             className={styles.thumb}
                             src={invoiceImageUrl(line.imagePath)}
@@ -832,32 +1062,7 @@ export function InvoicePage(): React.JSX.Element {
                         ) : (
                           <span className={styles.thumbPlaceholder} />
                         )}
-                        {editable ? (
-                          <div className={styles.imageActions}>
-                            <button
-                              type="button"
-                              className={styles.textButton}
-                              disabled={locked}
-                              onClick={() => void pickImage(line.key)}
-                            >
-                              {line.imagePath ? 'Change' : 'Add'}
-                            </button>
-                            {line.imagePath ? (
-                              <button
-                                type="button"
-                                className={styles.textButton}
-                                disabled={locked}
-                                onClick={() => clearImage(line.key)}
-                              >
-                                Remove
-                              </button>
-                            ) : null}
-                          </div>
-                        ) : null}
                       </div>
-                      {lineError?.image ? (
-                        <span className={styles.fieldError}>{lineError.image}</span>
-                      ) : null}
                     </td>
                     <td>
                       <input
@@ -867,34 +1072,29 @@ export function InvoicePage(): React.JSX.Element {
                         aria-label="Design name"
                         onChange={(event) => updateLine(line.key, { name: event.target.value })}
                       />
-                      {lineError?.name ? (
-                        <span className={styles.fieldError}>{lineError.name}</span>
-                      ) : null}
                     </td>
-                    <td>
-                      <select
-                        className={lineError?.unit ? styles.selectInvalid : styles.select}
+                    <td className={styles.unitCol}>
+                      <SearchableSelect
                         value={line.unitId}
                         disabled={locked}
-                        aria-label="Unit"
-                        onChange={(event) => {
-                          const unit = units.find((item) => item.id === event.target.value)
+                        invalid={Boolean(lineError?.unit)}
+                        clearable
+                        variant="underline"
+                        placeholder="Unit"
+                        searchPlaceholder="Search unit"
+                        ariaLabel="Unit"
+                        options={unitChoices(line, units).map((unit) => ({
+                          value: unit.id,
+                          label: unit.inactive ? `${unit.name} (inactive)` : unit.name
+                        }))}
+                        onChange={(next) => {
+                          const unit = units.find((item) => item.id === next)
                           updateLine(line.key, {
-                            unitId: event.target.value,
-                            unitName: unit?.name ?? line.unitName
+                            unitId: next,
+                            unitName: unit?.name ?? (next ? line.unitName : '')
                           })
                         }}
-                      >
-                        <option value="">Unit</option>
-                        {unitChoices(line, units).map((unit) => (
-                          <option key={unit.id} value={unit.id}>
-                            {unit.inactive ? `${unit.name} (inactive)` : unit.name}
-                          </option>
-                        ))}
-                      </select>
-                      {lineError?.unit ? (
-                        <span className={styles.fieldError}>{lineError.unit}</span>
-                      ) : null}
+                      />
                     </td>
                     <td className={styles.num}>
                       <input
@@ -906,9 +1106,6 @@ export function InvoicePage(): React.JSX.Element {
                         onChange={(event) => updateLine(line.key, { quantity: event.target.value })}
                         onBlur={(event) => commitQuantity(line.key, event.target.value)}
                       />
-                      {lineError?.quantity ? (
-                        <span className={styles.fieldError}>{lineError.quantity}</span>
-                      ) : null}
                     </td>
                     <td className={styles.num}>
                       <input
@@ -916,27 +1113,29 @@ export function InvoicePage(): React.JSX.Element {
                         value={line.rate}
                         disabled={locked}
                         inputMode="decimal"
-                        aria-label="Rate"
+                        placeholder={
+                          line.unitId && line.unitName ? `Price per ${line.unitName}` : undefined
+                        }
+                        aria-label={
+                          line.unitId && line.unitName ? `Price per ${line.unitName}` : 'Price'
+                        }
                         onChange={(event) => updateLine(line.key, { rate: event.target.value })}
                         onBlur={(event) => commitRate(line.key, event.target.value)}
                       />
-                      {lineError?.rate ? (
-                        <span className={styles.fieldError}>{lineError.rate}</span>
-                      ) : null}
                     </td>
-                    <td className={styles.num}>
-                      <div className={styles.lineTotal}>{lineTotalText(line)}</div>
+                    <td className={`${styles.num} ${styles.totalCol}`}>
+                      <MoneyReadout amount={lineTotalAmount(line)} />
                     </td>
                     {editable ? (
-                      <td>
+                      <td className={styles.removeCol}>
                         <button
                           type="button"
-                          className={styles.iconButton}
+                          className={styles.trashButton}
                           aria-label={`Remove ${line.name.trim() || 'design'}`}
                           disabled={locked}
                           onClick={() => removeLine(line.key)}
                         >
-                          <Icon name="close" />
+                          <Icon name="trash" width={15} height={15} />
                         </button>
                       </td>
                     ) : null}
@@ -957,8 +1156,8 @@ export function InvoicePage(): React.JSX.Element {
           </div>
         ) : null}
         <div className={styles.footer}>
-          <span>Total</span>
-          <span>{invoiceTotalText(editor.lines)}</span>
+          <span className={styles.footerLabel}>Total</span>
+          <MoneyReadout amount={invoiceTotalAmount(editor.lines)} emphasize />
         </div>
       </section>
 
@@ -1013,6 +1212,15 @@ export function InvoicePage(): React.JSX.Element {
           busy={false}
           onClose={leaveBlocked.reset}
           onConfirm={leaveBlocked.proceed}
+        />
+      ) : null}
+      {alert ? (
+        <AlertToast
+          key={alert.id}
+          title={alert.title}
+          message={alert.message}
+          tone={alert.tone}
+          onClose={() => setAlert(null)}
         />
       ) : null}
     </Page>

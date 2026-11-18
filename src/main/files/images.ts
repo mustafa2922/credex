@@ -57,18 +57,7 @@ export function storedImageDataUri(filename: string, maxSide = 320): string | nu
   return `data:image/jpeg;base64,${output.toJPEG(80).toString('base64')}`
 }
 
-export async function pickInvoiceImage(parent?: BrowserWindow | null): Promise<string | null> {
-  const options: OpenDialogOptions = {
-    title: 'Choose an image',
-    properties: ['openFile'],
-    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
-  }
-  const result = parent
-    ? await dialog.showOpenDialog(parent, options)
-    : await dialog.showOpenDialog(options)
-  if (result.canceled || result.filePaths.length === 0) return null
-
-  const image = nativeImage.createFromPath(result.filePaths[0])
+function storeNativeImage(image: Electron.NativeImage): string {
   if (image.isEmpty()) throw new Error('Could not read that image')
   const size = image.getSize()
   if (size.width <= 0 || size.height <= 0) throw new Error('Could not read that image')
@@ -82,4 +71,21 @@ export async function pickInvoiceImage(parent?: BrowserWindow | null): Promise<s
   const filename = `${randomUUID()}.jpg`
   writeFileSync(join(dir, filename), resized.toJPEG(85))
   return filename
+}
+
+export function storeInvoiceImageFromBytes(bytes: Uint8Array): string {
+  return storeNativeImage(nativeImage.createFromBuffer(Buffer.from(bytes)))
+}
+
+export async function pickInvoiceImage(parent?: BrowserWindow | null): Promise<string | null> {
+  const options: OpenDialogOptions = {
+    title: 'Choose an image',
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+  }
+  const result = parent
+    ? await dialog.showOpenDialog(parent, options)
+    : await dialog.showOpenDialog(options)
+  if (result.canceled || result.filePaths.length === 0) return null
+  return storeNativeImage(nativeImage.createFromPath(result.filePaths[0]))
 }

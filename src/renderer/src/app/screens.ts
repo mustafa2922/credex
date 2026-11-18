@@ -40,7 +40,6 @@ export const screens: AppScreen[] = [
     id: 'home',
     index: true,
     label: 'Home',
-    description: 'Application status and updates.',
     icon: 'home',
     Component: HomePage
   },
@@ -90,7 +89,7 @@ export const screens: AppScreen[] = [
     id: 'settings',
     path: 'settings',
     label: 'Settings',
-    description: 'Appearance for CredEx.',
+    description: 'Appearance and application status.',
     icon: 'settings',
     Component: SettingsPage
   }
