@@ -24,6 +24,7 @@ export type IconName =
   | 'plus'
   | 'reopen'
   | 'export'
+  | 'upload'
 
 type IconProps = SVGProps<SVGSVGElement> & {
   name: IconName
@@ -147,6 +148,13 @@ const glyphs: Record<IconName, ReactNode> = {
     <>
       <path d="M12 4v10" />
       <path d="m8.5 10.5 3.5 3.5 3.5-3.5" />
+      <path d="M5 18h14" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 16V6" />
+      <path d="m8.5 9.5 3.5-3.5 3.5 3.5" />
       <path d="M5 18h14" />
     </>
   )

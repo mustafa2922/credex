@@ -19,9 +19,7 @@ export function Page({
 
   return (
     <div className={pageClass}>
-      {!hideDescription && description ? (
-        <p className={styles.description}>{description}</p>
-      ) : null}
+      {!hideDescription && description ? <p className={styles.description}>{description}</p> : null}
       {children}
     </div>
   )

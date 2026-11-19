@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { ipcErrorMessage } from '../../../../shared/ipcError'
 import type { Unit, UnitListStatus } from '../../../../shared/units'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
@@ -29,11 +30,6 @@ function validateUnitForm(name: string): FormErrors {
     errors.name = 'Name must be at most 30 characters'
   }
   return errors
-}
-
-function ipcErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return 'Something went wrong'
 }
 
 function UnitFormModal({
@@ -165,7 +161,10 @@ export function UnitsPage(): React.JSX.Element {
   }, [search, statusFilter])
 
   useEffect(() => {
-    void refresh()
+    const timer = window.setTimeout(() => {
+      void refresh()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [refresh])
 
   const noResults = search.trim() !== '' || statusFilter !== 'active'

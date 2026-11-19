@@ -29,10 +29,7 @@ export function ImageViewer({
     }
   }, [])
 
-  useEffect(() => {
-    if (count === 0) return
-    setIndex((current) => Math.min(Math.max(current, 0), count - 1))
-  }, [count])
+  const safeIndex = count === 0 ? 0 : Math.min(Math.max(index, 0), count - 1)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -56,7 +53,7 @@ export function ImageViewer({
 
   if (count === 0) return null
 
-  const src = images[index]
+  const src = images[safeIndex]
   const multi = count > 1
 
   return createPortal(
@@ -73,16 +70,11 @@ export function ImageViewer({
             {title}
             {multi ? (
               <span className={styles.counter}>
-                {index + 1} / {count}
+                {safeIndex + 1} / {count}
               </span>
             ) : null}
           </h2>
-          <button
-            type="button"
-            className={styles.close}
-            aria-label="Close"
-            onClick={onClose}
-          >
+          <button type="button" className={styles.close} aria-label="Close" onClick={onClose}>
             <Icon name="close" width={16} height={16} />
           </button>
         </div>

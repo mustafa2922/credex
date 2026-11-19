@@ -34,13 +34,33 @@ export type ListPaymentsParams = {
 }
 
 export type CreatePaymentInput = {
-  invoice_id: string
+  client_id: string
+  invoice_id?: string | null
   amount: number
   method: PaymentMethod
   payment_date: string
   note?: string | null
   attachment_path?: string | null
 }
+
+export type PreviewPaymentInput = {
+  client_id: string
+  invoice_id?: string | null
+  amount: number
+}
+
+export type PaymentAllocationRow = {
+  invoice_id: string
+  invoice_number: string
+  amount: number
+}
+
+export type CreatePaymentResult = {
+  created: PaymentAllocationRow[]
+}
+
+export type PreviewPaymentResult =
+  { ok: true; allocations: PaymentAllocationRow[] } | { ok: false; error: string }
 
 export type VoidPaymentInput = {
   id: string
@@ -61,4 +81,11 @@ export function paymentStatusLabel(status: PaymentStatus): string {
   if (status === 'partial') return 'Partial'
   if (status === 'paid') return 'Paid'
   return 'Unpaid'
+}
+
+export function summarizePaymentAllocations(
+  created: readonly PaymentAllocationRow[],
+  formatAmount: (paisa: number) => string
+): string {
+  return created.map((row) => `${row.invoice_number}: ${formatAmount(row.amount)}`).join(' · ')
 }

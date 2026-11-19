@@ -65,6 +65,8 @@
   --color-accent-soft: rgba(79, 98, 200, 0.14);
   --color-tooltip-bg: #1b1b1f;
   --color-tooltip-text: #f4f4f5;
+  --color-scrollbar: rgba(24, 24, 27, 0.22);
+  --color-scrollbar-hover: rgba(24, 24, 27, 0.36);
 }
 
 *,
@@ -77,6 +79,8 @@
 
 ul {
   list-style: none;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-scrollbar) transparent;
@@ -112,8 +116,6 @@ ul {
 
 *::-webkit-scrollbar-corner {
   background: transparent;
-}
-
 }
 
 button,

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { app, BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
 import type Database from 'better-sqlite3'
 import { existsSync, unlinkSync, writeFileSync } from 'fs'
 import { basename, join } from 'path'
@@ -9,7 +9,7 @@ import type { InvoiceDetail } from '../../../shared/invoices'
 import type { ExportInvoicePdfResult } from '../../../shared/settings'
 import { paymentMethodLabel } from '../../../shared/payments'
 import { storedImageDataUri } from '../../files/images'
-import { assertExportsDirWritable } from '../../paths'
+import { assertExportsDirWritable, tempDir } from '../../paths'
 import { getInvoice } from './service'
 
 function escapeHtml(value: string): string {
@@ -129,7 +129,7 @@ export async function exportInvoicePdf(
 
   const dir = assertExportsDirWritable()
 
-  const htmlPath = join(app.getPath('temp'), `credex-invoice-${randomUUID()}.html`)
+  const htmlPath = join(tempDir(), `credex-invoice-${randomUUID()}.html`)
   const win = new BrowserWindow({
     show: false,
     width: 794,
@@ -158,7 +158,7 @@ export async function exportInvoicePdf(
       writeFileSync(filePath, pdf)
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      throw new Error(`Could not save PDF to:\n${filePath}\n\n${reason}`)
+      throw new Error(`Could not save PDF to:\n${filePath}\n\n${reason}`, { cause: error })
     }
     return { saved: true, filename: basename(filePath), filePath }
   } finally {

@@ -7,7 +7,6 @@ import {
   changeBackupDir,
   changeDataDir,
   changeExportsDir,
-  clearBackupDir,
   copyDiagnostics,
   getSettingsSnapshot,
   inspectDataDirTarget,
@@ -61,7 +60,7 @@ export function registerSettingsIpc(db: Database.Database): void {
       const input = changeDataDirSchema.parse(raw ?? {})
       return await changeDataDir(db, input)
     } catch (error) {
-      if (error instanceof ZodError) throw new Error(formatZodError(error))
+      if (error instanceof ZodError) throw new Error(formatZodError(error), { cause: error })
       throw error
     }
   })
@@ -71,7 +70,7 @@ export function registerSettingsIpc(db: Database.Database): void {
       changeExportsDir(changeFolderSchema.parse(raw ?? {}))
       return getSettingsSnapshot(db)
     } catch (error) {
-      if (error instanceof ZodError) throw new Error(formatZodError(error))
+      if (error instanceof ZodError) throw new Error(formatZodError(error), { cause: error })
       throw error
     }
   })
@@ -81,14 +80,9 @@ export function registerSettingsIpc(db: Database.Database): void {
       changeBackupDir(changeFolderSchema.parse(raw ?? {}))
       return getSettingsSnapshot(db)
     } catch (error) {
-      if (error instanceof ZodError) throw new Error(formatZodError(error))
+      if (error instanceof ZodError) throw new Error(formatZodError(error), { cause: error })
       throw error
     }
-  })
-
-  ipcMain.handle('settings:clearBackupDir', () => {
-    clearBackupDir()
-    return getSettingsSnapshot(db)
   })
 
   ipcMain.handle('settings:openPath', async (_event, raw: unknown) => {

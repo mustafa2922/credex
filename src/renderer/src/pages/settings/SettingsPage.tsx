@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { SettingsSnapshot } from '../../../../shared/settings'
 import { Page } from '@renderer/components/layout/Page'
 import { AlertToast, type AlertTone } from '@renderer/components/ui/AlertToast'
@@ -45,11 +45,8 @@ export function SettingsPage(): React.JSX.Element {
     message: string
     tone: AlertTone
   } | null>(null)
-  const alertIdRef = useRef(0)
-
   const showAlert = useCallback((message: string, title: string, tone: AlertTone): void => {
-    alertIdRef.current += 1
-    setAlert({ id: alertIdRef.current, title, message, tone })
+    setAlert((prev) => ({ id: (prev?.id ?? 0) + 1, title, message, tone }))
   }, [])
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -67,7 +64,10 @@ export function SettingsPage(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    void refresh()
+    const timer = window.setTimeout(() => {
+      void refresh()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [refresh])
 
   useEffect(() => window.api?.onUpdateStatus(setStatus), [])
@@ -82,7 +82,11 @@ export function SettingsPage(): React.JSX.Element {
       setSnap(next)
       showAlert('Exports folder updated.', 'Success', 'success')
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : 'Could not change exports folder', 'Settings', 'error')
+      showAlert(
+        error instanceof Error ? error.message : 'Could not change exports folder',
+        'Settings',
+        'error'
+      )
     } finally {
       setBusy(false)
     }
@@ -99,8 +103,9 @@ export function SettingsPage(): React.JSX.Element {
         setSnap(next)
         showAlert('Backup folder updated.', 'Success', 'success')
       } catch (error) {
-        const message = error instanceof Error ? error.message : ''
-        if (message === 'SAME_DRIVE_CONFIRM') {
+        const message = error instanceof Error ? error.message : String(error)
+        // Electron wraps IPC errors: "... Error: SAME_DRIVE_CONFIRM"
+        if (message.includes('SAME_DRIVE_CONFIRM')) {
           const ok = window.confirm(
             'Backup folder is on the same drive as data. This does not protect against disk failure. Continue?'
           )
@@ -116,7 +121,11 @@ export function SettingsPage(): React.JSX.Element {
         }
       }
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : 'Could not change backup folder', 'Settings', 'error')
+      showAlert(
+        error instanceof Error ? error.message : 'Could not change backup folder',
+        'Settings',
+        'error'
+      )
     } finally {
       setBusy(false)
     }
@@ -159,7 +168,11 @@ export function SettingsPage(): React.JSX.Element {
         confirmSyncFolder: inspection.syncFolder
       })
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : 'Could not change data folder', 'Settings', 'error')
+      showAlert(
+        error instanceof Error ? error.message : 'Could not change data folder',
+        'Settings',
+        'error'
+      )
     } finally {
       setBusy(false)
     }
@@ -171,7 +184,11 @@ export function SettingsPage(): React.JSX.Element {
       await window.api.settings.copyDiagnostics()
       showAlert('Diagnostics copied to the clipboard.', 'Success', 'success')
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : 'Could not copy diagnostics', 'Settings', 'error')
+      showAlert(
+        error instanceof Error ? error.message : 'Could not copy diagnostics',
+        'Settings',
+        'error'
+      )
     }
   }
 
@@ -190,8 +207,9 @@ export function SettingsPage(): React.JSX.Element {
             Folders
           </h3>
           <p className={styles.hint}>
-            Data defaults to the app userData folder; exports default to Downloads\credex. Paths are
-            saved in config.json and stay put if defaults change later.
+            Data defaults to the app userData folder; exports to Downloads\credex; backups to
+            Downloads\credex\backups. Paths are saved in config.json and stay put if defaults change
+            later.
           </p>
           {loadError ? <p className={styles.warning}>{loadError}</p> : null}
 
@@ -200,8 +218,18 @@ export function SettingsPage(): React.JSX.Element {
               {(
                 [
                   { key: 'data', label: 'Data', folder: folders.data, onChange: changeData },
-                  { key: 'exports', label: 'Exports', folder: folders.exports, onChange: changeExports },
-                  { key: 'backups', label: 'Backups', folder: folders.backups, onChange: changeBackups }
+                  {
+                    key: 'exports',
+                    label: 'Exports',
+                    folder: folders.exports,
+                    onChange: changeExports
+                  },
+                  {
+                    key: 'backups',
+                    label: 'Backups',
+                    folder: folders.backups,
+                    onChange: changeBackups
+                  }
                 ] as const
               ).map((row) => (
                 <div key={row.key} className={styles.folderRow}>
@@ -225,28 +253,16 @@ export function SettingsPage(): React.JSX.Element {
                     {row.folder.path ? (
                       <Button
                         disabled={busy}
-                        onClick={() => void window.api?.settings.openPath(row.folder.path as string)}
+                        onClick={() =>
+                          void window.api?.settings.openPath(row.folder.path as string)
+                        }
                       >
                         Open
                       </Button>
                     ) : null}
-                    <Button
-                      variant="primary"
-                      disabled={busy}
-                      onClick={() => void row.onChange()}
-                    >
-                      {row.key === 'backups' && !row.folder.path ? 'Choose' : 'Change'}
+                    <Button variant="primary" disabled={busy} onClick={() => void row.onChange()}>
+                      Change
                     </Button>
-                    {row.key === 'backups' && row.folder.path ? (
-                      <Button
-                        disabled={busy}
-                        onClick={() =>
-                          void window.api?.settings.clearBackupDir().then(setSnap)
-                        }
-                      >
-                        Clear
-                      </Button>
-                    ) : null}
                   </div>
                 </div>
               ))}

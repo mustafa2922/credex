@@ -90,10 +90,7 @@ export function SearchableSelect({
   const inputValue = open ? query : (selected?.label ?? '')
 
   useLayoutEffect(() => {
-    if (!open) {
-      setMenuPosition(null)
-      return
-    }
+    if (!open) return
 
     function updatePosition(): void {
       const trigger = rootRef.current
@@ -134,17 +131,24 @@ export function SearchableSelect({
       if (rootRef.current?.contains(target) || listRef.current?.contains(target)) return
       setOpen(false)
       setQuery('')
+      setMenuPosition(null)
     }
 
     document.addEventListener('mousedown', onPointerDown)
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [open])
 
-  useEffect(() => {
-    if (!open) return
+  const preferredActive = useMemo(() => {
     const selectedIndex = filtered.findIndex((option) => option.value === value)
-    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
-  }, [open, filtered, value])
+    return selectedIndex >= 0 ? selectedIndex : 0
+  }, [filtered, value])
+  const [activeTrack, setActiveTrack] = useState({ open: false, preferred: preferredActive })
+  if (open && (activeTrack.open !== open || activeTrack.preferred !== preferredActive)) {
+    setActiveTrack({ open, preferred: preferredActive })
+    setActiveIndex(preferredActive)
+  } else if (!open && activeTrack.open) {
+    setActiveTrack({ open: false, preferred: preferredActive })
+  }
 
   useEffect(() => {
     if (!open) return
@@ -155,6 +159,7 @@ export function SearchableSelect({
   function close(): void {
     setOpen(false)
     setQuery('')
+    setMenuPosition(null)
   }
 
   function openMenu(): void {
@@ -177,6 +182,7 @@ export function SearchableSelect({
     onChange('')
     setQuery('')
     setOpen(false)
+    setMenuPosition(null)
     inputRef.current?.focus()
   }
 
@@ -240,9 +246,7 @@ export function SearchableSelect({
     ? {
         top: menuPosition.placement === 'bottom' ? menuPosition.top : undefined,
         bottom:
-          menuPosition.placement === 'top'
-            ? window.innerHeight - menuPosition.top
-            : undefined,
+          menuPosition.placement === 'top' ? window.innerHeight - menuPosition.top : undefined,
         left: menuPosition.left,
         width: menuPosition.width,
         maxHeight: menuPosition.maxHeight

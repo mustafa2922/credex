@@ -9,11 +9,7 @@ import { registerClientsIpc } from './modules/clients/ipc'
 import { registerInvoicesIpc } from './modules/invoices/ipc'
 import { registerPaymentsIpc } from './modules/payments/ipc'
 import { registerUnitsIpc } from './modules/units/ipc'
-import {
-  registerRecoveryIpc,
-  registerSettingsIpc,
-  setStartupOk
-} from './modules/settings/ipc'
+import { registerRecoveryIpc, registerSettingsIpc, setStartupOk } from './modules/settings/ipc'
 import { initializePaths, ensureExportsDir } from './paths'
 import { logger } from './logger'
 import { setupUpdater } from './updater'
@@ -66,10 +62,8 @@ function wireZoomShortcuts(win: BrowserWindow): void {
     if (!(input.control || input.meta) || input.alt) return
 
     const { key, code } = input
-    const zoomIn =
-      key === '+' || key === '=' || code === 'Equal' || code === 'NumpadAdd'
-    const zoomOut =
-      key === '-' || key === '_' || code === 'Minus' || code === 'NumpadSubtract'
+    const zoomIn = key === '+' || key === '=' || code === 'Equal' || code === 'NumpadAdd'
+    const zoomOut = key === '-' || key === '_' || code === 'Minus' || code === 'NumpadSubtract'
     const resetZoom = key === '0' || code === 'Digit0' || code === 'Numpad0'
 
     if (!zoomIn && !zoomOut && !resetZoom) return

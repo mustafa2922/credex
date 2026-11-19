@@ -20,7 +20,14 @@ import type { AppConfig, FolderStatus, StartupState } from '../shared/settings'
 const configSchema = z.object({
   dataDir: z.string().trim().min(1),
   exportsDir: z.string().trim().min(1),
-  backupDir: z.union([z.string().trim().min(1), z.null()]).default(null)
+  backupDir: z.string().trim().min(1)
+})
+
+/** Accept older configs that left backupDir unset. */
+const legacyConfigSchema = z.object({
+  dataDir: z.string().trim().min(1),
+  exportsDir: z.string().trim().min(1),
+  backupDir: z.union([z.string().trim().min(1), z.null()]).optional()
 })
 
 type ResolvedPaths = {
@@ -42,6 +49,16 @@ export function defaultDataDir(): string {
 /** Default exports folder: Downloads/credex. */
 export function defaultExportsDir(): string {
   return resolve(join(app.getPath('downloads'), 'credex'))
+}
+
+/** Default backups folder: Downloads/credex/backups. */
+export function defaultBackupDir(): string {
+  return resolve(join(app.getPath('downloads'), 'credex', 'backups'))
+}
+
+/** OS temp directory for ephemeral files (e.g. PDF print HTML). */
+export function tempDir(): string {
+  return resolve(app.getPath('temp'))
 }
 
 function ensureDir(dir: string): void {
@@ -70,11 +87,21 @@ function writeConfigAtomic(config: AppConfig): void {
   renameSync(temp, file)
 }
 
-function readConfigFile(): AppConfig | null {
+function readConfigFile(): { config: AppConfig; migratedBackupDir: boolean } | null {
   const file = configFile()
   if (!existsSync(file)) return null
   const raw = JSON.parse(readFileSync(file, 'utf8')) as unknown
-  return configSchema.parse(raw)
+  const legacy = legacyConfigSchema.parse(raw)
+  const hadBackupDir = Boolean(legacy.backupDir && legacy.backupDir.trim().length > 0)
+  const backup = hadBackupDir ? resolve(legacy.backupDir as string) : defaultBackupDir()
+  return {
+    config: configSchema.parse({
+      dataDir: resolve(legacy.dataDir),
+      exportsDir: resolve(legacy.exportsDir),
+      backupDir: backup
+    }),
+    migratedBackupDir: !hadBackupDir
+  }
 }
 
 function prepareDataTree(dataDir: string): void {
@@ -133,7 +160,7 @@ export function initializePaths(): StartupState {
   try {
     const existing = readConfigFile()
     if (existing) {
-      const dataDir = resolve(existing.dataDir)
+      const dataDir = resolve(existing.config.dataDir)
       const reason = validateExistingDataDir(dataDir)
       if (reason) {
         startupFailure = { ok: false, path: dataDir, reason }
@@ -142,19 +169,27 @@ export function initializePaths(): StartupState {
       ensureDir(join(dataDir, 'files'))
       ensureDir(join(dataDir, 'logs'))
       ensureDir(join(dataDir, 'premigration'))
-      const exportsPath = resolve(existing.exportsDir)
+      const exportsPath = resolve(existing.config.exportsDir)
+      const backupsPath = resolve(existing.config.backupDir)
       try {
         ensureDir(exportsPath)
       } catch {
         // Recreate exports silently when possible; export will report write failures later.
       }
-      resolved = {
-        config: {
-          dataDir,
-          exportsDir: exportsPath,
-          backupDir: existing.backupDir ? resolve(existing.backupDir) : null
-        }
+      try {
+        ensureDir(backupsPath)
+      } catch {
+        // Leave backups missing; Settings will show status.
       }
+      const config: AppConfig = {
+        dataDir,
+        exportsDir: exportsPath,
+        backupDir: backupsPath
+      }
+      if (existing.migratedBackupDir) {
+        writeConfigAtomic(config)
+      }
+      resolved = { config }
       return { ok: true }
     }
 
@@ -175,16 +210,22 @@ export function initializePaths(): StartupState {
     }
 
     const exportsPath = defaultExportsDir()
+    const backupsPath = defaultBackupDir()
     try {
       ensureDir(exportsPath)
     } catch {
       // Leave exports missing; export will show a clear error with Change folder.
     }
+    try {
+      ensureDir(backupsPath)
+    } catch {
+      // Leave backups missing; Settings will show status.
+    }
 
     const config: AppConfig = {
       dataDir: resolve(dataDir),
       exportsDir: resolve(exportsPath),
-      backupDir: null
+      backupDir: resolve(backupsPath)
     }
     writeConfigAtomic(config)
     resolved = { config }
@@ -193,7 +234,7 @@ export function initializePaths(): StartupState {
     const message = error instanceof Error ? error.message : 'Could not initialize folders'
     startupFailure = {
       ok: false,
-      path: readConfigFile()?.dataDir ?? defaultDataDir(),
+      path: readConfigFile()?.config.dataDir ?? defaultDataDir(),
       reason: message
     }
     return startupFailure
@@ -237,7 +278,7 @@ export function exportsDir(): string {
   return requireResolved().config.exportsDir
 }
 
-export function backupDir(): string | null {
+export function backupDir(): string {
   return requireResolved().config.backupDir
 }
 
@@ -245,13 +286,16 @@ export function saveConfig(config: AppConfig): void {
   const next: AppConfig = {
     dataDir: resolve(config.dataDir),
     exportsDir: resolve(config.exportsDir),
-    backupDir: config.backupDir ? resolve(config.backupDir) : null
+    backupDir: resolve(config.backupDir)
   }
   writeConfigAtomic(next)
   resolved = { config: next }
 }
 
-export function folderStatus(pathValue: string | null, options?: { allowMissing?: boolean }): FolderStatus {
+export function folderStatus(
+  pathValue: string | null,
+  options?: { allowMissing?: boolean }
+): FolderStatus {
   if (!pathValue) return 'not_set'
   if (!existsSync(pathValue)) return options?.allowMissing ? 'missing' : 'missing'
   try {
@@ -322,7 +366,7 @@ export function assertExportsDirWritable(): string {
     return dir
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
-    throw new Error(`Could not use exports folder:\n${dir}\n\n${reason}`)
+    throw new Error(`Could not use exports folder:\n${dir}\n\n${reason}`, { cause: error })
   }
 }
 

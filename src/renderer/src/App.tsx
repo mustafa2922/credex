@@ -11,8 +11,13 @@ export default function App(): React.JSX.Element {
     let active = true
     const load = window.api?.startup
     if (!load) {
-      setStartup({ ok: true })
-      return
+      const timer = window.setTimeout(() => {
+        if (active) setStartup({ ok: true })
+      }, 0)
+      return () => {
+        active = false
+        window.clearTimeout(timer)
+      }
     }
     void load().then((state) => {
       if (active) setStartup(state)

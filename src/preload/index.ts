@@ -17,9 +17,12 @@ import type {
 } from '../shared/settings'
 import type {
   CreatePaymentInput,
+  CreatePaymentResult,
   ListPaymentsParams,
   Payment,
   PaymentSummary,
+  PreviewPaymentInput,
+  PreviewPaymentResult,
   VoidPaymentInput
 } from '../shared/payments'
 import type { ListUnitsParams, Unit } from '../shared/units'
@@ -57,7 +60,8 @@ const invoices = {
     ipcRenderer.invoke('invoices:void', input),
   deleteDraft: (id: string): Promise<void> => ipcRenderer.invoke('invoices:deleteDraft', id),
   pickImage: (): Promise<string | null> => ipcRenderer.invoke('invoices:pickImage'),
-  saveImage: (bytes: Uint8Array): Promise<string> => ipcRenderer.invoke('invoices:saveImage', bytes),
+  saveImage: (bytes: Uint8Array): Promise<string> =>
+    ipcRenderer.invoke('invoices:saveImage', bytes),
   exportPdf: (input: ExportInvoicePdfInput): Promise<ExportInvoicePdfResult> =>
     ipcRenderer.invoke('invoices:exportPdf', input)
 }
@@ -83,7 +87,6 @@ const settings = {
     ipcRenderer.invoke('settings:changeExportsDir', input),
   changeBackupDir: (input: ChangeFolderInput): Promise<SettingsSnapshot> =>
     ipcRenderer.invoke('settings:changeBackupDir', input),
-  clearBackupDir: (): Promise<SettingsSnapshot> => ipcRenderer.invoke('settings:clearBackupDir'),
   openPath: (path: string): Promise<void> => ipcRenderer.invoke('settings:openPath', path),
   showInFolder: (path: string): Promise<void> => ipcRenderer.invoke('settings:showInFolder', path),
   openConfig: (): Promise<void> => ipcRenderer.invoke('settings:openConfig'),
@@ -93,7 +96,9 @@ const settings = {
 const payments = {
   list: (params?: ListPaymentsParams): Promise<PaymentSummary[]> =>
     ipcRenderer.invoke('payments:list', params ?? {}),
-  create: (input: CreatePaymentInput): Promise<Payment> =>
+  preview: (input: PreviewPaymentInput): Promise<PreviewPaymentResult> =>
+    ipcRenderer.invoke('payments:preview', input),
+  create: (input: CreatePaymentInput): Promise<CreatePaymentResult> =>
     ipcRenderer.invoke('payments:create', input),
   void: (input: VoidPaymentInput): Promise<Payment> => ipcRenderer.invoke('payments:void', input),
   pickAttachment: (): Promise<string | null> => ipcRenderer.invoke('payments:pickAttachment')

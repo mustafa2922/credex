@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import {
+  allocateOldestFirst,
   assertPaymentWithinDue,
   clientBalancePaisa,
   invoiceDuePaisa,
   invoicePaidAndDue,
   paymentStatusFromAmounts,
-  sumActivePaymentsPaisa
+  sumActivePaymentsPaisa,
+  type AllocatableInvoice
 } from './payments'
 
 describe('sumActivePaymentsPaisa', () => {
@@ -91,15 +93,63 @@ describe('clientBalancePaisa', () => {
   test('equals total issued minus total active payments across invoices', () => {
     // Client has two issued invoices: 10_000 and 5_000.
     // Active payments: 4_000 on the first, 5_000 on the second.
-    const dues = [
-      invoiceDuePaisa(10_000, 4_000),
-      invoiceDuePaisa(5_000, 5_000)
-    ]
+    const dues = [invoiceDuePaisa(10_000, 4_000), invoiceDuePaisa(5_000, 5_000)]
     expect(dues).toEqual([6_000, 0])
     expect(clientBalancePaisa(dues)).toBe(6_000)
 
     const totalIssued = 10_000 + 5_000
     const totalActivePayments = 4_000 + 5_000
     expect(clientBalancePaisa(dues)).toBe(totalIssued - totalActivePayments)
+  })
+})
+
+describe('allocateOldestFirst', () => {
+  const invoices: AllocatableInvoice[] = [
+    { id: 'c', number: 'INV-0003', date: '2026-03-01', due: 3_000 },
+    { id: 'a', number: 'INV-0001', date: '2026-01-01', due: 5_000 },
+    { id: 'b', number: 'INV-0002', date: '2026-02-01', due: 4_000 }
+  ]
+
+  test('partial payment against a single invoice', () => {
+    expect(
+      allocateOldestFirst([{ id: 'a', number: 'INV-0001', date: '2026-01-01', due: 5_000 }], 2_000)
+    ).toEqual([{ invoiceId: 'a', amount: 2_000 }])
+  })
+
+  test('exact fill of one invoice', () => {
+    expect(
+      allocateOldestFirst([{ id: 'a', number: 'INV-0001', date: '2026-01-01', due: 5_000 }], 5_000)
+    ).toEqual([{ invoiceId: 'a', amount: 5_000 }])
+  })
+
+  test('spills across three invoices oldest first', () => {
+    expect(allocateOldestFirst(invoices, 10_000)).toEqual([
+      { invoiceId: 'a', amount: 5_000 },
+      { invoiceId: 'b', amount: 4_000 },
+      { invoiceId: 'c', amount: 1_000 }
+    ])
+  })
+
+  test('rejects amount greater than receivable', () => {
+    expect(() => allocateOldestFirst(invoices, 12_001)).toThrow(/exceeds receivable/)
+  })
+
+  test('orders by date then number', () => {
+    const sameDay: AllocatableInvoice[] = [
+      { id: 'y', number: 'INV-0010', date: '2026-01-15', due: 1_000 },
+      { id: 'x', number: 'INV-0009', date: '2026-01-15', due: 2_000 },
+      { id: 'z', number: 'INV-0008', date: '2026-01-10', due: 3_000 }
+    ]
+    expect(allocateOldestFirst(sameDay, 6_000)).toEqual([
+      { invoiceId: 'z', amount: 3_000 },
+      { invoiceId: 'x', amount: 2_000 },
+      { invoiceId: 'y', amount: 1_000 }
+    ])
+  })
+
+  test('selected-invoice cap rejects amount above that due', () => {
+    expect(() =>
+      allocateOldestFirst([{ id: 'a', number: 'INV-0001', date: '2026-01-01', due: 5_000 }], 5_001)
+    ).toThrow(/exceeds receivable/)
   })
 })

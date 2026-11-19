@@ -7,6 +7,7 @@ import type {
   InvoiceStatus,
   InvoiceSummary
 } from '../../../../shared/invoices'
+import { ipcErrorMessage } from '../../../../shared/ipcError'
 import { paymentStatusLabel } from '../../../../shared/payments'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
@@ -15,11 +16,6 @@ import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
 import styles from './InvoicesPage.module.css'
-
-function ipcErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return 'Something went wrong'
-}
 
 function statusLabel(status: InvoiceStatus): string {
   if (status === 'issued') return 'Issued'
@@ -204,12 +200,14 @@ export function InvoicesPage(): React.JSX.Element {
   }, [search, statusFilter, paymentStatusFilter])
 
   useEffect(() => {
-    setLoading(true)
-    void refresh()
+    const timer = window.setTimeout(() => {
+      setLoading(true)
+      void refresh()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [refresh])
 
-  const filtered =
-    search.trim() !== '' || statusFilter !== 'all' || paymentStatusFilter !== 'all'
+  const filtered = search.trim() !== '' || statusFilter !== 'all' || paymentStatusFilter !== 'all'
   const showEmpty = !loading && !loadError && invoices.length === 0 && !filtered
   const showNoResults = !loading && !loadError && invoices.length === 0 && filtered
   const actionBusy = busyId !== null
@@ -256,7 +254,7 @@ export function InvoicesPage(): React.JSX.Element {
         'success'
       )
     } catch (error) {
-      showAlert(ipcErrorMessage(error), 'Invoice needs attention', 'error')
+      showAlert(ipcErrorMessage(error), 'Cannot reopen', 'error')
     } finally {
       setBusyId(null)
     }
@@ -471,7 +469,9 @@ export function InvoicesPage(): React.JSX.Element {
                             onClick={() => void handleExport(invoice)}
                           >
                             <Icon name="export" width={15} height={15} />
-                            {rowBusy ? <span className={styles.visuallyHidden}>Working…</span> : null}
+                            {rowBusy ? (
+                              <span className={styles.visuallyHidden}>Working…</span>
+                            ) : null}
                           </button>
                         </div>
                       </td>

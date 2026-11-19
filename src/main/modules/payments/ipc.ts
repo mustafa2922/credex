@@ -1,22 +1,28 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import type Database from 'better-sqlite3'
 import { ZodError } from 'zod'
-import type { Payment, PaymentSummary } from '../../../shared/payments'
+import type {
+  CreatePaymentResult,
+  Payment,
+  PaymentSummary,
+  PreviewPaymentResult
+} from '../../../shared/payments'
 import { pickInvoiceImage } from '../../files/images'
 import {
   createPaymentSchema,
   formatZodError,
   listPaymentsSchema,
+  previewPaymentSchema,
   voidPaymentSchema
 } from './schemas'
-import { createPayment, listPayments, voidPayment } from './service'
+import { createPayment, listPayments, previewPayment, voidPayment } from './service'
 
 function invoke<T>(fn: () => T): T {
   try {
     return fn()
   } catch (error) {
     if (error instanceof ZodError) {
-      throw new Error(formatZodError(error))
+      throw new Error(formatZodError(error), { cause: error })
     }
     throw error
   }
@@ -34,7 +40,14 @@ export function registerPaymentsIpc(db: Database.Database): void {
     })
   )
 
-  ipcMain.handle('payments:create', (_, raw: unknown): Payment =>
+  ipcMain.handle('payments:preview', (_, raw: unknown): PreviewPaymentResult =>
+    invoke(() => {
+      const input = previewPaymentSchema.parse(raw ?? {})
+      return previewPayment(db, input)
+    })
+  )
+
+  ipcMain.handle('payments:create', (_, raw: unknown): CreatePaymentResult =>
     invoke(() => {
       const input = createPaymentSchema.parse(raw ?? {})
       return createPayment(db, input)
@@ -53,7 +66,7 @@ export function registerPaymentsIpc(db: Database.Database): void {
       return await pickInvoiceImage(parentWindow(event))
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new Error(formatZodError(error))
+        throw new Error(formatZodError(error), { cause: error })
       }
       throw error
     }

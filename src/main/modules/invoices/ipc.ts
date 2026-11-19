@@ -27,7 +27,7 @@ function invoke<T>(fn: () => T): T {
     return fn()
   } catch (error) {
     if (error instanceof ZodError) {
-      throw new Error(formatZodError(error))
+      throw new Error(formatZodError(error), { cause: error })
     }
     throw error
   }
@@ -108,7 +108,7 @@ export function registerInvoicesIpc(db: Database.Database): void {
       return await pickInvoiceImage(parentWindow(event))
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new Error(formatZodError(error))
+        throw new Error(formatZodError(error), { cause: error })
       }
       throw error
     }
@@ -130,7 +130,7 @@ export function registerInvoicesIpc(db: Database.Database): void {
       return await exportInvoicePdf(db, input.id, input.hideRates)
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new Error(formatZodError(error))
+        throw new Error(formatZodError(error), { cause: error })
       }
       throw error
     }

@@ -89,3 +89,58 @@ export function clientBalancePaisa(invoiceDues: readonly number[]): number {
   if (sum > MAX_SAFE) throw new Error('Client balance is too large')
   return Number(sum)
 }
+
+export type AllocatableInvoice = {
+  id: string
+  number: string
+  date: string
+  due: number
+}
+
+export type PaymentAllocation = {
+  invoiceId: string
+  amount: number
+}
+
+/**
+ * Allocate a payment across invoices oldest-first (invoice_date, then number).
+ * Amount and dues are integer paisa. Rejects amount that exceeds total due.
+ */
+export function allocateOldestFirst(
+  invoices: readonly AllocatableInvoice[],
+  amount: number
+): PaymentAllocation[] {
+  assertSafeInteger(amount, 'Payment amount is invalid')
+  if (amount <= 0) throw new Error('Amount must be greater than zero')
+
+  let receivable = 0n
+  for (const invoice of invoices) {
+    assertSafeInteger(invoice.due, 'Due amount is invalid')
+    if (invoice.due < 0) throw new Error('Due amount is invalid')
+    receivable += BigInt(invoice.due)
+  }
+  if (BigInt(amount) > receivable) {
+    throw new Error('Amount exceeds receivable')
+  }
+
+  const ordered = [...invoices].sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1
+    if (a.number !== b.number) return a.number < b.number ? -1 : 1
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  })
+
+  let remaining = amount
+  const allocations: PaymentAllocation[] = []
+  for (const invoice of ordered) {
+    if (remaining <= 0) break
+    if (invoice.due <= 0) continue
+    const applied = Math.min(remaining, invoice.due)
+    allocations.push({ invoiceId: invoice.id, amount: applied })
+    remaining -= applied
+  }
+
+  if (remaining !== 0 || allocations.length === 0) {
+    throw new Error('Amount exceeds receivable')
+  }
+  return allocations
+}

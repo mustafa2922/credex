@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type DragEvent,
-  type FormEvent
-} from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import { Link, useBlocker, useLocation, useNavigate, useParams } from 'react-router'
 import {
   formatPaisa,
@@ -27,17 +20,18 @@ import {
   type SaveInvoiceInput,
   type SaveInvoiceLine
 } from '../../../../shared/invoices'
+import { ipcErrorMessage } from '../../../../shared/ipcError'
 import {
-  isPaymentDate,
   paymentMethodLabel,
   paymentStatusLabel,
-  type CreatePaymentInput,
+  summarizePaymentAllocations,
+  type CreatePaymentResult,
   type Payment,
-  type PaymentMethod,
   type PaymentRecordStatus,
   type PaymentStatus
 } from '../../../../shared/payments'
 import type { Unit } from '../../../../shared/units'
+import { NewPaymentModal } from '@renderer/components/payments/NewPaymentModal'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
 import { AlertToast, type AlertAction, type AlertTone } from '@renderer/components/ui/AlertToast'
@@ -85,13 +79,22 @@ type Choice = {
   inactive: boolean
 }
 
-const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'cheque', 'online']
-
 function todayLocal(): string {
   const now = new Date()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   return `${now.getFullYear()}-${month}-${day}`
+}
+
+function formatInvoiceDateDisplay(value: string): string {
+  if (!isInvoiceDate(value)) return value
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
 }
 
 function blankLine(): LineDraft {
@@ -113,11 +116,6 @@ function blankEditor(): EditorState {
 
 function emptyErrors(): EditorErrors {
   return { lines: {} }
-}
-
-function ipcErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return 'Something went wrong'
 }
 
 function firstErrorMessage(errors: EditorErrors): string | null {
@@ -219,48 +217,6 @@ function formatPaymentStamp(value: string): { date: string; time: string } | nul
       hour12: true
     })
   }
-}
-
-type AddPaymentFieldErrors = {
-  amount?: string
-  method?: string
-  paymentDate?: string
-}
-
-function validateAddPayment(
-  amountText: string,
-  due: number,
-  method: PaymentMethod | '',
-  paymentDate: string
-): { errors: AddPaymentFieldErrors; amountPaisa?: number } {
-  const errors: AddPaymentFieldErrors = {}
-  let amountPaisa: number | undefined
-
-  if (!amountText.trim()) {
-    errors.amount = 'Amount is required'
-  } else {
-    try {
-      amountPaisa = parseRatePaisa(amountText)
-      if (amountPaisa <= 0) {
-        errors.amount = 'Amount must be greater than zero'
-        amountPaisa = undefined
-      } else if (amountPaisa > due) {
-        errors.amount = `Amount cannot exceed due ${formatRupees(due)}`
-        amountPaisa = undefined
-      }
-    } catch {
-      errors.amount = 'Amount must be a number with up to 2 decimal places'
-    }
-  }
-
-  if (!method) {
-    errors.method = 'Method is required'
-  }
-  if (!isPaymentDate(paymentDate)) {
-    errors.paymentDate = 'Enter a valid date'
-  }
-
-  return { errors, amountPaisa }
 }
 
 function lineTotalAmount(line: LineDraft): string | null {
@@ -452,224 +408,6 @@ function ExportModal({ busy, onClose, onExport }: ExportModalProps): React.JSX.E
   )
 }
 
-type AddPaymentModalProps = {
-  invoiceId: string
-  invoiceNumber: string | null
-  clientName: string
-  due: number
-  busy: boolean
-  onClose: () => void
-  onCreated: () => Promise<void>
-  onError: (message: string) => void
-}
-
-function AddPaymentModal({
-  invoiceId,
-  invoiceNumber,
-  clientName,
-  due,
-  busy,
-  onClose,
-  onCreated,
-  onError
-}: AddPaymentModalProps): React.JSX.Element {
-  const [amount, setAmount] = useState('')
-  const [method, setMethod] = useState<PaymentMethod | ''>('')
-  const [paymentDate, setPaymentDate] = useState(todayLocal())
-  const [note, setNote] = useState('')
-  const [attachmentPath, setAttachmentPath] = useState<string | null>(null)
-  const [errors, setErrors] = useState<AddPaymentFieldErrors>({})
-  const [pickingAttachment, setPickingAttachment] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-
-  async function handlePickAttachment(): Promise<void> {
-    if (!window.api?.payments || pickingAttachment) return
-    setPickingAttachment(true)
-    try {
-      const path = await window.api.payments.pickAttachment()
-      if (path) setAttachmentPath(path)
-    } catch (error) {
-      onError(ipcErrorMessage(error))
-    } finally {
-      setPickingAttachment(false)
-    }
-  }
-
-  async function handleSubmit(event: FormEvent): Promise<void> {
-    event.preventDefault()
-    if (!window.api?.payments) return
-    const next = validateAddPayment(amount, due, method, paymentDate)
-    if (Object.keys(next.errors).length > 0 || next.amountPaisa === undefined) {
-      setErrors(next.errors)
-      const message = Object.values(next.errors).filter(Boolean).join(' ')
-      onError(message || 'Check the payment details')
-      return
-    }
-    setErrors({})
-
-    const input: CreatePaymentInput = {
-      invoice_id: invoiceId,
-      amount: next.amountPaisa,
-      method: method as PaymentMethod,
-      payment_date: paymentDate,
-      note: note.trim() || null,
-      attachment_path: attachmentPath
-    }
-
-    setSubmitting(true)
-    try {
-      await window.api.payments.create(input)
-      await onCreated()
-    } catch (error) {
-      onError(ipcErrorMessage(error))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const modalBusy = busy || submitting
-
-  return (
-    <Modal labelledBy="add-payment-title" size="wide" busy={modalBusy} onClose={onClose}>
-      <h2 id="add-payment-title" className={styles.modalTitle}>
-        New payment
-      </h2>
-      <form className={styles.modalForm} onSubmit={(event) => void handleSubmit(event)} noValidate>
-        <label className={styles.modalField}>
-          <span className={styles.modalLabel}>Invoice</span>
-          <SearchableSelect
-            value={invoiceId}
-            disabled
-            ariaLabel="Invoice"
-            placeholder="Select invoice"
-            searchPlaceholder="Search invoice or client"
-            options={[
-              {
-                value: invoiceId,
-                label: invoiceNumber ?? 'Invoice',
-                description: `${clientName} · due ${formatRupees(due)}`
-              }
-            ]}
-            onChange={() => undefined}
-          />
-        </label>
-
-        <label className={styles.modalField}>
-          <span className={styles.modalLabel}>Amount</span>
-          <div className={styles.amountRow}>
-            <input
-              className={errors.amount ? styles.modalInputInvalid : styles.modalInput}
-              value={amount}
-              disabled={modalBusy}
-              inputMode="decimal"
-              aria-label="Payment amount"
-              onChange={(event) => {
-                setAmount(event.target.value)
-                setErrors((current) => ({ ...current, amount: undefined }))
-              }}
-            />
-            <Button
-              type="button"
-              disabled={modalBusy || due <= 0}
-              onClick={() => {
-                setAmount(formatRatePaisa(due))
-                setErrors((current) => ({ ...current, amount: undefined }))
-              }}
-            >
-              Pay full due
-            </Button>
-          </div>
-        </label>
-
-        <label className={styles.modalField}>
-          <span className={styles.modalLabel}>Method</span>
-          <SearchableSelect
-            value={method}
-            disabled={modalBusy}
-            invalid={Boolean(errors.method)}
-            ariaLabel="Payment method"
-            placeholder="Method"
-            searchPlaceholder="Search method"
-            options={PAYMENT_METHODS.map((value) => ({
-              value,
-              label: paymentMethodLabel(value)
-            }))}
-            onChange={(next) => {
-              setMethod(next as PaymentMethod)
-              setErrors((current) => ({ ...current, method: undefined }))
-            }}
-          />
-        </label>
-
-        <label className={styles.modalField}>
-          <span className={styles.modalLabel}>Date</span>
-          <input
-            type="date"
-            className={errors.paymentDate ? styles.modalInputInvalid : styles.modalInput}
-            value={paymentDate}
-            disabled={modalBusy}
-            onChange={(event) => {
-              setPaymentDate(event.target.value)
-              setErrors((current) => ({ ...current, paymentDate: undefined }))
-            }}
-          />
-        </label>
-
-        <label className={styles.modalField}>
-          <span className={styles.modalLabel}>Note</span>
-          <input
-            className={styles.modalInput}
-            value={note}
-            disabled={modalBusy}
-            placeholder="Optional"
-            onChange={(event) => setNote(event.target.value)}
-          />
-        </label>
-
-        <div className={styles.modalField}>
-          <span className={styles.modalLabel}>Attachment</span>
-          <div className={styles.attachmentRow}>
-            <Button
-              type="button"
-              disabled={modalBusy || pickingAttachment}
-              onClick={() => void handlePickAttachment()}
-            >
-              {attachmentPath ? 'Change file' : 'Choose file'}
-            </Button>
-            {attachmentPath ? (
-              <>
-                <img
-                  className={styles.attachmentThumb}
-                  src={invoiceImageUrl(attachmentPath)}
-                  alt=""
-                />
-                <button
-                  type="button"
-                  className={styles.imageClear}
-                  disabled={modalBusy}
-                  aria-label="Remove attachment"
-                  onClick={() => setAttachmentPath(null)}
-                >
-                  <Icon name="close" width={14} height={14} />
-                </button>
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <div className={styles.modalActions}>
-          <Button type="button" disabled={modalBusy} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={modalBusy}>
-            Save
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
 type VoidPaymentModalProps = {
   payment: Payment
   busy: boolean
@@ -777,35 +515,47 @@ export function InvoicePage(): React.JSX.Element {
     tone: AlertTone
     actions?: AlertAction[]
   } | null>(null)
-  const alertIdRef = useRef(0)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  function showAlert(
-    message: string,
-    title = 'Invoice needs attention',
-    tone: AlertTone = 'error',
-    actions?: AlertAction[]
-  ): void {
-    alertIdRef.current += 1
-    setAlert({ id: alertIdRef.current, title, message, tone, actions })
-  }
+  const showAlert = useCallback(
+    (
+      message: string,
+      title = 'Invoice needs attention',
+      tone: AlertTone = 'error',
+      actions?: AlertAction[]
+    ): void => {
+      setAlert((prev) => ({
+        id: (prev?.id ?? 0) + 1,
+        title,
+        message,
+        tone,
+        actions
+      }))
+    },
+    []
+  )
 
-  function showSuccess(message: string, title = 'Success', actions?: AlertAction[]): void {
-    showAlert(message, title, 'success', actions)
-  }
+  const showSuccess = useCallback(
+    (message: string, title = 'Success', actions?: AlertAction[]): void => {
+      showAlert(message, title, 'success', actions)
+    },
+    [showAlert]
+  )
 
-  function publishErrors(nextErrors: EditorErrors, title = 'Invoice needs attention'): void {
-    setErrors(nextErrors)
-    const message = firstErrorMessage(nextErrors)
-    if (message) showAlert(message, title, 'error')
-  }
+  const publishErrors = useCallback(
+    (nextErrors: EditorErrors, title = 'Invoice needs attention'): void => {
+      setErrors(nextErrors)
+      const message = firstErrorMessage(nextErrors)
+      if (message) showAlert(message, title, 'error')
+    },
+    [showAlert]
+  )
 
   const editable = !invoice || invoice.status === 'draft'
   const locked = !editable || busy
   const isDirty = !loading && editable && JSON.stringify(editor) !== baseline
   const dirtyRef = useRef(false)
   const leavingRef = useRef(false)
-  dirtyRef.current = isDirty
   const routeKey = invoiceId ?? 'new'
   const [seenRoute, setSeenRoute] = useState(routeKey)
   if (seenRoute !== routeKey) {
@@ -819,8 +569,15 @@ export function InvoicePage(): React.JSX.Element {
     setExportOpen(false)
     setAddPaymentOpen(false)
     setVoidPaymentTarget(null)
-    leavingRef.current = false
   }
+
+  useEffect(() => {
+    dirtyRef.current = isDirty
+  }, [isDirty])
+
+  useEffect(() => {
+    leavingRef.current = false
+  }, [routeKey])
 
   const blocker = useBlocker(useCallback(() => dirtyRef.current && !leavingRef.current, []))
 
@@ -888,7 +645,16 @@ export function InvoicePage(): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [invoiceId, arrivalError, applyInvoice])
+  }, [
+    invoiceId,
+    arrivalError,
+    arrivalToast,
+    applyInvoice,
+    navigate,
+    location.pathname,
+    publishErrors,
+    showAlert
+  ])
 
   function rememberRemoved(filename: string | null): void {
     if (!filename) return
@@ -1138,8 +904,8 @@ export function InvoicePage(): React.JSX.Element {
           : 'Invoice reopened as a draft.'
       )
     } catch (error) {
-      publishErrors({ lines: {}, form: ipcErrorMessage(error) })
       setConfirm(null)
+      showAlert(ipcErrorMessage(error), 'Cannot reopen', 'error')
     } finally {
       setBusy(false)
     }
@@ -1200,12 +966,12 @@ export function InvoicePage(): React.JSX.Element {
     applyInvoice(detail)
   }
 
-  async function handlePaymentCreated(): Promise<void> {
+  async function handlePaymentCreated(result: CreatePaymentResult): Promise<void> {
     setAddPaymentOpen(false)
     setBusy(true)
     try {
       await refreshInvoiceDetail()
-      showSuccess('Payment recorded successfully.')
+      showSuccess(summarizePaymentAllocations(result.created, formatRupees), 'Payment recorded')
     } catch (error) {
       showAlert(ipcErrorMessage(error))
     } finally {
@@ -1239,7 +1005,11 @@ export function InvoicePage(): React.JSX.Element {
 
   function guardActivePayments(): boolean {
     if (hasActivePayments) {
-      showAlert('Void its payments first')
+      showAlert(
+        'This invoice still has active payments. Trash those payments first.',
+        'Cannot continue',
+        'error'
+      )
       return true
     }
     return false
@@ -1388,19 +1158,36 @@ export function InvoicePage(): React.JSX.Element {
             }}
           />
         </label>
-        <label className={`${styles.field} ${styles.fieldNarrow}`}>
-          <span className={styles.label}>Date</span>
-          <input
-            type="date"
-            className={errors.date ? styles.inputInvalid : styles.input}
-            value={editor.invoiceDate}
-            disabled={locked}
-            onChange={(event) => {
-              setEditor((current) => ({ ...current, invoiceDate: event.target.value }))
-              setErrors((current) => ({ ...current, date: undefined, form: undefined }))
-            }}
-          />
-        </label>
+        <div className={`${styles.field} ${styles.fieldDate}`}>
+          <span className={styles.label} id="invoice-date-label">
+            Date
+          </span>
+          <div className={errors.date ? styles.dateControlInvalid : styles.dateControl}>
+            <span className={styles.dateDisplay} aria-hidden="true">
+              {formatInvoiceDateDisplay(editor.invoiceDate)}
+            </span>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={editor.invoiceDate}
+              disabled={locked}
+              aria-labelledby="invoice-date-label"
+              onClick={(event) => {
+                const input = event.currentTarget
+                if (input.disabled) return
+                try {
+                  input.showPicker()
+                } catch {
+                  // Browser may reject showPicker outside a trusted gesture.
+                }
+              }}
+              onChange={(event) => {
+                setEditor((current) => ({ ...current, invoiceDate: event.target.value }))
+                setErrors((current) => ({ ...current, date: undefined, form: undefined }))
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       <section className={styles.card} aria-labelledby="invoice-lines-heading">
@@ -1685,11 +1472,8 @@ export function InvoicePage(): React.JSX.Element {
                         Amount
                       </th>
                       <th scope="col">Note</th>
-                      <th className={styles.thumbCol} scope="col">
-                        <span className={styles.visuallyHidden}>Attachment</span>
-                      </th>
                       <th scope="col">Status</th>
-                      <th className={styles.removeCol} scope="col">
+                      <th className={styles.paymentActionsCol} scope="col">
                         <span className={styles.visuallyHidden}>Actions</span>
                       </th>
                     </tr>
@@ -1719,35 +1503,35 @@ export function InvoicePage(): React.JSX.Element {
                               <span className={styles.notAvailable}>Not Available</span>
                             )}
                           </td>
-                          <td className={styles.thumbCol}>
-                            {payment.attachment_path ? (
-                              <button
-                                type="button"
-                                className={`${styles.actionButton} ${styles.imageButton}`}
-                                aria-label="View attachment"
-                                title="View attachment"
-                                onClick={() => openPaymentAttachmentViewer(payment)}
-                              >
-                                <Icon name="image" width={17} height={17} />
-                              </button>
-                            ) : null}
-                          </td>
                           <td>
                             <span className={paymentRecordStatusClass(payment.status)}>
                               {paymentRecordStatusLabel(payment.status)}
                             </span>
                           </td>
-                          <td className={styles.removeCol}>
-                            <button
-                              type="button"
-                              className={styles.trashButton}
-                              disabled={!active || busy}
-                              aria-label="Trash payment"
-                              title="Trash"
-                              onClick={() => setVoidPaymentTarget(payment)}
-                            >
-                              <Icon name="trash" width={15} height={15} />
-                            </button>
+                          <td className={styles.paymentActionsCol}>
+                            <div className={styles.paymentActions}>
+                              {payment.attachment_path ? (
+                                <button
+                                  type="button"
+                                  className={`${styles.actionButton} ${styles.imageButton}`}
+                                  aria-label="View attachment"
+                                  title="View attachment"
+                                  onClick={() => openPaymentAttachmentViewer(payment)}
+                                >
+                                  <Icon name="image" width={17} height={17} />
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                className={styles.trashButton}
+                                disabled={!active || busy}
+                                aria-label="Trash payment"
+                                title="Trash"
+                                onClick={() => setVoidPaymentTarget(payment)}
+                              >
+                                <Icon name="trash" width={15} height={15} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -1803,12 +1587,11 @@ export function InvoicePage(): React.JSX.Element {
         />
       ) : null}
       {addPaymentOpen && invoice ? (
-        <AddPaymentModal
-          invoiceId={invoice.id}
-          invoiceNumber={invoice.number}
-          clientName={invoice.client_name}
-          due={invoice.due}
+        <NewPaymentModal
+          locked
           busy={busy}
+          initialClientId={invoice.client_id}
+          initialInvoiceId={invoice.id}
           onClose={() => setAddPaymentOpen(false)}
           onCreated={handlePaymentCreated}
           onError={(message) => showAlert(message, 'Payment needs attention', 'error')}

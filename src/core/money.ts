@@ -12,9 +12,53 @@ function scaledInteger(text: string, fractionDigits: number): bigint {
   return BigInt(whole + fraction.padEnd(fractionDigits, '0'))
 }
 
+/** Strip thousand separators from a typed rupee amount. */
+export function stripAmountCommas(input: string): string {
+  return input.replace(/,/g, '')
+}
+
+/**
+ * Pakistani / South Asian grouping: thousands, then lakhs, then crores.
+ * e.g. 1,000 · 10,000 · 1,00,000 · 10,00,000 · 1,00,00,000
+ */
+export function formatPakistaniGroupedDigits(digits: string): string {
+  if (!digits) return ''
+  if (digits.length <= 3) return digits
+  const lastThree = digits.slice(-3)
+  const head = digits.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',')
+  return `${head},${lastThree}`
+}
+
+/**
+ * Format a typed rupee amount with Pakistani thousand separators while typing.
+ * Keeps at most one decimal point and up to 2 fraction digits.
+ */
+export function formatAmountInput(input: string): string {
+  const cleaned = stripAmountCommas(input).replace(/[^\d.]/g, '')
+  if (!cleaned) return ''
+
+  const dot = cleaned.indexOf('.')
+  const hasDot = dot !== -1
+  let wholeDigits = (hasDot ? cleaned.slice(0, dot) : cleaned).replace(/\D/g, '')
+  const fraction = hasDot
+    ? cleaned
+        .slice(dot + 1)
+        .replace(/\D/g, '')
+        .slice(0, 2)
+    : ''
+
+  if (!wholeDigits && !hasDot) return ''
+  if (!wholeDigits) wholeDigits = '0'
+  if (wholeDigits.length > 1) wholeDigits = wholeDigits.replace(/^0+/, '') || '0'
+
+  const whole = formatPakistaniGroupedDigits(wholeDigits)
+  if (!hasDot) return whole
+  return fraction.length > 0 ? `${whole}.${fraction}` : `${whole}.`
+}
+
 /** Parse a rupee amount with up to 2 decimal places into paisa. */
 export function parseRatePaisa(input: string): number {
-  const text = input.trim()
+  const text = stripAmountCommas(input).trim()
   if (!/^\d+(?:\.\d{1,2})?$/.test(text)) {
     throw new Error('Rate must be a number with up to 2 decimal places')
   }
@@ -62,12 +106,12 @@ export function invoiceTotalPaisa(lineTotals: readonly number[]): number {
   return Number(sum)
 }
 
-/** Format paisa as rupees with a thousands separator and 2 decimal places. */
+/** Format paisa as rupees with Pakistani grouping and 2 decimal places. */
 export function formatPaisa(paisa: number): string {
   assertSafeInteger(paisa, 'Amount is invalid')
   const negative = paisa < 0
   const value = negative ? -BigInt(paisa) : BigInt(paisa)
-  const rupees = (value / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const rupees = formatPakistaniGroupedDigits((value / 100n).toString())
   const fraction = (value % 100n).toString().padStart(2, '0')
   return `${negative ? '-' : ''}${rupees}.${fraction}`
 }

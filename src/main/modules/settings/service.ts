@@ -1,19 +1,8 @@
 import { app, dialog, shell, type BrowserWindow } from 'electron'
 import Database from 'better-sqlite3'
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  rmSync,
-  statSync
-} from 'fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs'
 import { join, resolve } from 'path'
-import {
-  isSyncFolderPath,
-  isUncPath,
-  pathsOverlap,
-  sameDrive
-} from '../../../core/folders'
+import { isSyncFolderPath, isUncPath, pathsOverlap, sameDrive } from '../../../core/folders'
 import type {
   ChangeDataDirInput,
   ChangeFolderInput,
@@ -27,6 +16,7 @@ import {
   copyDirectoryRecursive,
   dataDir,
   dbFile,
+  defaultBackupDir,
   defaultExportsDir,
   directorySizeBytes,
   exportsDir,
@@ -58,7 +48,8 @@ function readSchemaVersion(dbPath: string): number {
 
 function assertLocalDataPath(targetPath: string): string {
   const resolved = resolve(targetPath.trim())
-  if (isUncPath(resolved)) throw new Error('Network (UNC) paths are not allowed for the data folder')
+  if (isUncPath(resolved))
+    throw new Error('Network (UNC) paths are not allowed for the data folder')
   return resolved
 }
 
@@ -67,17 +58,16 @@ export function getSettingsSnapshot(db: Database.Database): SettingsSnapshot {
   const exportsPath = exportsDir()
   const backupsPath = backupDir()
   const databasePath = dbFile()
-  let dbSize: number | null = null
+  let dbSize: number | null
   try {
     dbSize = existsSync(databasePath) ? statSync(databasePath).size : null
   } catch {
     dbSize = null
   }
 
-  const backupWarning =
-    backupsPath && sameDrive(dataPath, backupsPath)
-      ? 'Backup folder is on the same drive as data. This does not protect against disk failure.'
-      : null
+  const backupWarning = sameDrive(dataPath, backupsPath)
+    ? 'Backup folder is on the same drive as data. This does not protect against disk failure.'
+    : null
 
   return {
     version: app.getVersion(),
@@ -92,9 +82,7 @@ export function getSettingsSnapshot(db: Database.Database): SettingsSnapshot {
         status: folderStatus(dataPath),
         freeBytes: freeDiskBytes(dataPath),
         sizeBytes: directorySizeBytes(dataPath),
-        warning: isSyncFolderPath(dataPath)
-          ? 'Data folder looks like a cloud sync location.'
-          : null
+        warning: isSyncFolderPath(dataPath) ? 'Data folder looks like a cloud sync location.' : null
       },
       exports: {
         path: exportsPath,
@@ -104,7 +92,7 @@ export function getSettingsSnapshot(db: Database.Database): SettingsSnapshot {
       backups: {
         path: backupsPath,
         status: folderStatus(backupsPath),
-        freeBytes: backupsPath ? freeDiskBytes(backupsPath) : null,
+        freeBytes: freeDiskBytes(backupsPath),
         warning: backupWarning
       }
     },
@@ -119,7 +107,7 @@ export function copyDiagnostics(db: Database.Database): string {
     `schema: ${snap.schema}`,
     `dataDir: ${snap.folders.data.path}`,
     `exportsDir: ${snap.folders.exports.path}`,
-    `backupDir: ${snap.folders.backups.path ?? '(not set)'}`,
+    `backupDir: ${snap.folders.backups.path}`,
     `dbPath: ${snap.dbPath}`,
     `configPath: ${snap.configPath}`,
     `os: ${snap.osVersion}`,
@@ -158,7 +146,9 @@ export function inspectDataDirTarget(targetPath: string): {
   const resolved = assertLocalDataPath(targetPath)
   const current = dataDir()
   if (pathsOverlap(resolved, current)) {
-    throw new Error('Choose a folder that is not inside the current data folder (and does not contain it)')
+    throw new Error(
+      'Choose a folder that is not inside the current data folder (and does not contain it)'
+    )
   }
   const ledger = join(resolved, 'ledger.db')
   const hasLedger = existsSync(ledger)
@@ -224,7 +214,7 @@ export async function changeDataDir(
     liveDb.close()
   } catch (error) {
     logger.error(`Failed to checkpoint/close DB before copy: ${String(error)}`)
-    throw new Error('Could not close the database for copying')
+    throw new Error('Could not close the database for copying', { cause: error })
   }
 
   try {
@@ -295,11 +285,6 @@ export function changeBackupDir(input: ChangeFolderInput): void {
   logger.info(`backupDir set to ${resolved}`)
 }
 
-export function clearBackupDir(): void {
-  const config = getConfig()
-  saveConfig({ ...config, backupDir: null })
-}
-
 export async function openPath(target: string): Promise<void> {
   if (!target) throw new Error('Path is required')
   await shell.openPath(target)
@@ -327,15 +312,19 @@ export function adoptDataDirAtStartup(targetPath: string): void {
   mkdirSync(join(resolved, 'logs'), { recursive: true })
   mkdirSync(join(resolved, 'premigration'), { recursive: true })
   let exportsDirValue = defaultExportsDir()
+  let backupDirValue = defaultBackupDir()
   try {
-    exportsDirValue = getConfig().exportsDir
+    const current = getConfig()
+    exportsDirValue = current.exportsDir
+    backupDirValue = current.backupDir
   } catch {
     // Paths were not resolved yet during recovery.
   }
   mkdirSync(exportsDirValue, { recursive: true })
+  mkdirSync(backupDirValue, { recursive: true })
   saveConfig({
     dataDir: resolved,
     exportsDir: exportsDirValue,
-    backupDir: null
+    backupDir: backupDirValue
   })
 }

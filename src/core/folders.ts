@@ -54,10 +54,7 @@ export function sameDrive(a: string, b: string): boolean {
  * Build a non-colliding filename. If `base.pdf` exists, try `base (2).pdf`, `base (3).pdf`, …
  * `exists` receives candidate filenames (not full paths).
  */
-export function uniqueFilename(
-  desiredName: string,
-  exists: (filename: string) => boolean
-): string {
+export function uniqueFilename(desiredName: string, exists: (filename: string) => boolean): string {
   const name = basename(desiredName.trim())
   if (!name) throw new Error('Filename is required')
   if (!exists(name)) return name

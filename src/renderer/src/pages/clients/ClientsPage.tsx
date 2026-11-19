@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { formatRupees } from '../../../../core/money'
 import type { Client, ClientListStatus } from '../../../../shared/clients'
+import { ipcErrorMessage } from '../../../../shared/ipcError'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
 import { Button } from '@renderer/components/ui/Button'
@@ -40,11 +41,6 @@ function validateClientForm(name: string, phone: string): FormErrors {
     errors.phone = 'Phone may only contain digits, spaces, and + - ( )'
   }
   return errors
-}
-
-function ipcErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return 'Something went wrong'
 }
 
 function ClientFormModal({
@@ -186,7 +182,10 @@ export function ClientsPage(): React.JSX.Element {
   }, [search, statusFilter])
 
   useEffect(() => {
-    void refresh()
+    const timer = window.setTimeout(() => {
+      void refresh()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [refresh])
 
   const noResults = search.trim() !== '' || statusFilter !== 'active'
@@ -263,7 +262,11 @@ export function ClientsPage(): React.JSX.Element {
             onChange={(next) => setStatusFilter(next as ClientListStatus)}
           />
         </div>
-        <Button variant="primary" disabled={!window.api?.clients} onClick={() => setModal({ mode: 'create' })}>
+        <Button
+          variant="primary"
+          disabled={!window.api?.clients}
+          onClick={() => setModal({ mode: 'create' })}
+        >
           Add client
         </Button>
       </div>
@@ -275,7 +278,9 @@ export function ClientsPage(): React.JSX.Element {
         {loadError ? <p className={styles.stateMessage}>{loadError}</p> : null}
         {loading ? <p className={styles.stateMessage}>Loading…</p> : null}
         {showEmpty ? (
-          <p className={styles.stateMessage}>No clients yet. Add your first client to get started.</p>
+          <p className={styles.stateMessage}>
+            No clients yet. Add your first client to get started.
+          </p>
         ) : null}
         {showNoResults ? (
           <p className={styles.stateMessage}>No clients match your search or filters.</p>

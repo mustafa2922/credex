@@ -3,7 +3,7 @@ export type FolderStatus = 'ok' | 'missing' | 'not_writable' | 'not_set'
 export type AppConfig = {
   dataDir: string
   exportsDir: string
-  backupDir: string | null
+  backupDir: string
 }
 
 export type FolderInfo = {

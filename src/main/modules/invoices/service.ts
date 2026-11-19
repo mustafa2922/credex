@@ -324,8 +324,7 @@ export function saveInvoice(db: Database.Database, input: SaveInvoiceInput): Inv
 
 function nextInvoiceNumber(db: Database.Database): string {
   const row = db.prepare(`SELECT value FROM app_meta WHERE key = 'invoice_counter'`).get() as
-    | { value: string }
-    | undefined
+    { value: string } | undefined
   if (!row || !/^\d+$/.test(row.value)) throw new Error('Invoice counter is invalid')
   const current = Number(row.value)
   if (!Number.isSafeInteger(current)) throw new Error('Invoice counter is invalid')
@@ -368,7 +367,9 @@ export function reopenInvoice(db: Database.Database, id: string): InvoiceDetail 
   if (!invoice) throw new Error('Invoice not found')
   if (invoice.status !== 'issued') throw new Error('Only issued invoices can be reopened')
   if (countActivePaymentsForInvoice(db, id) > 0) {
-    throw new Error('Void its payments first')
+    throw new Error(
+      'This invoice still has active payments. Trash those payments before reopening.'
+    )
   }
   const now = new Date().toISOString()
   const updated = db
@@ -391,7 +392,9 @@ export function voidInvoice(db: Database.Database, id: string, reason: string): 
   if (!invoice) throw new Error('Invoice not found')
   if (invoice.status !== 'issued') throw new Error('Only issued invoices can be voided')
   if (countActivePaymentsForInvoice(db, id) > 0) {
-    throw new Error('Void its payments first')
+    throw new Error(
+      'This invoice still has active payments. Trash those payments before moving the invoice to Trash.'
+    )
   }
   const now = new Date().toISOString()
   const updated = db

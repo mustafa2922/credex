@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  formatAmountInput,
   formatPaisa,
   formatQuantityThousandths,
   formatRatePaisa,
@@ -18,6 +19,8 @@ describe('parseRatePaisa', () => {
     expect(parseRatePaisa('10.50')).toBe(1050)
     expect(parseRatePaisa('0.01')).toBe(1)
     expect(parseRatePaisa(' 10.5 ')).toBe(1050)
+    expect(parseRatePaisa('1,000')).toBe(100_000)
+    expect(parseRatePaisa('1,234.50')).toBe(123_450)
   })
 
   test('rejects more than 2 decimals, negatives, and blank input', () => {
@@ -25,6 +28,26 @@ describe('parseRatePaisa', () => {
     expect(() => parseRatePaisa('-1')).toThrow(/2 decimal/)
     expect(() => parseRatePaisa('')).toThrow(/2 decimal/)
     expect(() => parseRatePaisa('10.')).toThrow(/2 decimal/)
+  })
+})
+
+describe('formatAmountInput', () => {
+  test('inserts Pakistani thousand / lakh / crore separators while typing', () => {
+    expect(formatAmountInput('1000')).toBe('1,000')
+    expect(formatAmountInput('10000')).toBe('10,000')
+    expect(formatAmountInput('100000')).toBe('1,00,000')
+    expect(formatAmountInput('1234567')).toBe('12,34,567')
+    expect(formatAmountInput('10000000')).toBe('1,00,00,000')
+    expect(formatAmountInput('1000.')).toBe('1,000.')
+    expect(formatAmountInput('1000.5')).toBe('1,000.5')
+    expect(formatAmountInput('1000.50')).toBe('1,000.50')
+    expect(formatAmountInput('1,00,000')).toBe('1,00,000')
+  })
+
+  test('caps fraction digits at two and ignores junk', () => {
+    expect(formatAmountInput('12.345')).toBe('12.34')
+    expect(formatAmountInput('12a3b')).toBe('123')
+    expect(formatAmountInput('')).toBe('')
   })
 })
 
@@ -79,14 +102,17 @@ describe('invoiceTotalPaisa', () => {
 })
 
 describe('formatting', () => {
-  test('formats rupees with thousands separators', () => {
+  test('formats rupees with Pakistani thousand / lakh / crore separators', () => {
     expect(formatPaisa(0)).toBe('0.00')
     expect(formatPaisa(1)).toBe('0.01')
     expect(formatPaisa(100)).toBe('1.00')
     expect(formatPaisa(123456)).toBe('1,234.56')
-    expect(formatPaisa(123456789)).toBe('1,234,567.89')
+    expect(formatPaisa(10000000)).toBe('1,00,000.00')
+    expect(formatPaisa(123456789)).toBe('12,34,567.89')
+    expect(formatPaisa(1000000000)).toBe('1,00,00,000.00')
     expect(formatPaisa(-1050)).toBe('-10.50')
     expect(formatRupees(123456)).toBe('Rs 1,234.56')
+    expect(formatRupees(10000000)).toBe('Rs 1,00,000.00')
   })
 
   test('formats quantity and rate inputs without grouping', () => {

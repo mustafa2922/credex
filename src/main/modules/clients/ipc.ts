@@ -3,21 +3,20 @@ import type Database from 'better-sqlite3'
 import { ZodError } from 'zod'
 import type { Client } from '../../../shared/clients'
 import {
-  clientIdSchema,
   createClientSchema,
   formatZodError,
   listClientsSchema,
   setClientStatusSchema,
   updateClientSchema
 } from './schemas'
-import { createClient, getClient, listClients, setClientStatus, updateClient } from './service'
+import { createClient, listClients, setClientStatus, updateClient } from './service'
 
 function invoke<T>(fn: () => T): T {
   try {
     return fn()
   } catch (error) {
     if (error instanceof ZodError) {
-      throw new Error(formatZodError(error))
+      throw new Error(formatZodError(error), { cause: error })
     }
     throw error
   }
@@ -28,20 +27,6 @@ export function registerClientsIpc(db: Database.Database): void {
     invoke(() => {
       const params = listClientsSchema.parse(raw ?? {})
       return listClients(db, params)
-    })
-  )
-
-  ipcMain.handle('clients:get', (_, raw: unknown): Client =>
-    invoke(() => {
-      const id =
-        typeof raw === 'string'
-          ? clientIdSchema.parse(raw)
-          : clientIdSchema.parse((raw as { id?: string })?.id)
-      const client = getClient(db, id)
-      if (!client) {
-        throw new Error('Client not found')
-      }
-      return client
     })
   )
 
