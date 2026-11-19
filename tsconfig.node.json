@@ -5,9 +5,10 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "src/core/**/*"
+    "src/core/**/*",
+    "scripts/**/*.ts"
   ],
-  "exclude": ["src/**/*.test.ts"],
+  "exclude": ["src/**/*.test.ts", "scripts/.tmp"],
   "compilerOptions": {
     "composite": true,
     "types": ["electron-vite/node"]

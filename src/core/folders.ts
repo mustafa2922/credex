@@ -84,4 +84,10 @@ export function pdfExportBasename(invoiceNumber: string | null, hideRates: boole
   return hideRates ? `${base} - no rates.pdf` : `${base}.pdf`
 }
 
+/** Safe basename for a client ledger PDF export. */
+export function ledgerPdfBasename(clientName: string): string {
+  const base = (clientName.trim() || 'client').replace(/[<>:"/\\|?*]/g, '-')
+  return `${base} ledger.pdf`
+}
+
 export { dirname, join }

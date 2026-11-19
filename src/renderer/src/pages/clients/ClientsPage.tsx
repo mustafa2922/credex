@@ -1,13 +1,23 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router'
 import { formatRupees } from '../../../../core/money'
 import type { Client, ClientListStatus } from '../../../../shared/clients'
 import { ipcErrorMessage } from '../../../../shared/ipcError'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
+import { AlertToast, type AlertAction, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
 import styles from './ClientsPage.module.css'
+
+type AlertState = {
+  id: number
+  title: string
+  message: string
+  tone: AlertTone
+  actions?: AlertAction[]
+}
 
 const phoneChars = /^[\d\s+\-()]*$/
 
@@ -151,6 +161,7 @@ function StatusConfirmModal({
 }
 
 export function ClientsPage(): React.JSX.Element {
+  const navigate = useNavigate()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -162,6 +173,17 @@ export function ClientsPage(): React.JSX.Element {
   const [statusConfirm, setStatusConfirm] = useState<Client | null>(null)
   const [saving, setSaving] = useState(false)
   const [statusBusy, setStatusBusy] = useState(false)
+  const [exportBusyId, setExportBusyId] = useState<string | null>(null)
+  const [alert, setAlert] = useState<AlertState | null>(null)
+  const alertIdRef = useRef(0)
+
+  const showAlert = useCallback(
+    (message: string, title: string, tone: AlertTone, actions?: AlertAction[]): void => {
+      alertIdRef.current += 1
+      setAlert({ id: alertIdRef.current, title, message, tone, actions })
+    },
+    []
+  )
 
   const refresh = useCallback(async () => {
     if (!window.api?.clients) return
@@ -228,6 +250,35 @@ export function ClientsPage(): React.JSX.Element {
       setLoadError(ipcErrorMessage(error))
     } finally {
       setStatusBusy(false)
+    }
+  }
+
+  async function handleExportLedger(client: Client): Promise<void> {
+    if (!window.api?.clients?.exportLedgerPdf) return
+    setExportBusyId(client.id)
+    try {
+      const exported = await window.api.clients.exportLedgerPdf({ client_id: client.id })
+      if (exported.saved) {
+        showAlert(`Saved ${exported.filename}`, 'Success', 'success', [
+          {
+            label: 'Open file',
+            onClick: () => void window.api?.settings.openPath(exported.filePath)
+          },
+          {
+            label: 'Open folder',
+            onClick: () => void window.api?.settings.showInFolder(exported.filePath)
+          }
+        ])
+      }
+    } catch (error) {
+      showAlert(ipcErrorMessage(error), 'Could not export ledger', 'error', [
+        {
+          label: 'Change exports folder',
+          onClick: () => navigate('/settings')
+        }
+      ])
+    } finally {
+      setExportBusyId(null)
     }
   }
 
@@ -324,6 +375,17 @@ export function ClientsPage(): React.JSX.Element {
                         <button
                           type="button"
                           className={styles.iconButton}
+                          aria-label={`Download ledger for ${client.name}`}
+                          disabled={
+                            !window.api?.clients?.exportLedgerPdf || exportBusyId === client.id
+                          }
+                          onClick={() => void handleExportLedger(client)}
+                        >
+                          <Icon name="export" />
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.iconButton}
                           aria-label={`Edit ${client.name}`}
                           onClick={() => setModal({ mode: 'edit', client })}
                         >
@@ -380,6 +442,17 @@ export function ClientsPage(): React.JSX.Element {
             if (!statusBusy) setStatusConfirm(null)
           }}
           onConfirm={() => confirmStatusChange(statusConfirm)}
+        />
+      ) : null}
+
+      {alert ? (
+        <AlertToast
+          key={alert.id}
+          title={alert.title}
+          message={alert.message}
+          tone={alert.tone}
+          actions={alert.actions}
+          onClose={() => setAlert(null)}
         />
       ) : null}
     </Page>

@@ -2,7 +2,8 @@ import { randomUUID } from 'crypto'
 import type Database from 'better-sqlite3'
 import { clientBalancePaisa, invoicePaidAndDue } from '../../../core/payments'
 import type { Client, ClientListStatus, ListClientsParams } from '../../../shared/clients'
-import { sumActivePaymentsForInvoice } from '../payments/service'
+import type { PaymentMethod } from '../../../shared/payments'
+import { listPaymentsForInvoice, sumActivePaymentsForInvoice } from '../payments/service'
 
 type ClientRow = {
   id: string
@@ -16,6 +17,54 @@ type ClientRow = {
 type IssuedInvoiceRow = {
   id: string
   total: number
+}
+
+type LedgerInvoiceRow = {
+  id: string
+  number: string
+  invoice_date: string
+  total: number
+}
+
+type LedgerLineRow = {
+  name: string
+  image_path: string | null
+  unit_name: string
+  quantity: number
+  rate: number
+  total: number
+}
+
+export type ClientLedgerLine = {
+  name: string
+  image_path: string | null
+  unit_name: string
+  quantity: number
+  rate: number
+  total: number
+}
+
+export type ClientLedgerPayment = {
+  payment_date: string
+  method: PaymentMethod
+  note: string | null
+  amount: number
+}
+
+export type ClientLedgerInvoice = {
+  id: string
+  number: string
+  invoice_date: string
+  total: number
+  paid: number
+  due: number
+  lines: ClientLedgerLine[]
+  payments: ClientLedgerPayment[]
+}
+
+export type ClientLedgerData = {
+  client: { id: string; name: string; phone: string | null }
+  invoices: ClientLedgerInvoice[]
 }
 
 function clientBalance(db: Database.Database, clientId: string): number {
@@ -73,6 +122,75 @@ export function listClients(db: Database.Database, params: ListClientsParams): C
 export function getClient(db: Database.Database, id: string): Client | null {
   const row = getRow(db, id)
   return row ? mapRow(db, row) : null
+}
+
+/** Issued unpaid/partial invoices with lines and active payments, oldest first. */
+export function getClientLedgerData(db: Database.Database, clientId: string): ClientLedgerData {
+  const row = getRow(db, clientId)
+  if (!row) throw new Error('Client not found')
+
+  const invoices = db
+    .prepare(
+      `SELECT id, number, invoice_date, total
+       FROM invoices
+       WHERE client_id = ? AND status = 'issued' AND number IS NOT NULL
+       ORDER BY invoice_date ASC, number ASC, id ASC`
+    )
+    .all(clientId) as LedgerInvoiceRow[]
+
+  const lineStmt = db.prepare(
+    `SELECT name, image_path, unit_name, quantity, rate, total
+     FROM invoice_lines
+     WHERE invoice_id = ?
+     ORDER BY position ASC, id ASC`
+  )
+
+  const result: ClientLedgerInvoice[] = []
+  for (const invoice of invoices) {
+    const paid = sumActivePaymentsForInvoice(db, invoice.id)
+    const money = invoicePaidAndDue('issued', invoice.total, paid)
+    if (money.paymentStatus === 'paid') continue
+
+    const lines = (lineStmt.all(invoice.id) as LedgerLineRow[]).map((line) => ({
+      name: line.name,
+      image_path: line.image_path,
+      unit_name: line.unit_name,
+      quantity: line.quantity,
+      rate: line.rate,
+      total: line.total
+    }))
+
+    const payments = listPaymentsForInvoice(db, invoice.id)
+      .filter((payment) => payment.status === 'active')
+      .slice()
+      .sort((a, b) => {
+        if (a.payment_date !== b.payment_date) return a.payment_date.localeCompare(b.payment_date)
+        if (a.created_at !== b.created_at) return a.created_at.localeCompare(b.created_at)
+        return a.id.localeCompare(b.id)
+      })
+      .map((payment) => ({
+        payment_date: payment.payment_date,
+        method: payment.method,
+        note: payment.note,
+        amount: payment.amount
+      }))
+
+    result.push({
+      id: invoice.id,
+      number: invoice.number,
+      invoice_date: invoice.invoice_date,
+      total: invoice.total,
+      paid: money.paid,
+      due: money.due,
+      lines,
+      payments
+    })
+  }
+
+  return {
+    client: { id: row.id, name: row.name, phone: row.phone },
+    invoices: result
+  }
 }
 
 export function createClient(

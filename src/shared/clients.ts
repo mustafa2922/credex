@@ -16,3 +16,7 @@ export type ListClientsParams = {
   search?: string
   status?: ClientListStatus
 }
+
+export type ExportClientLedgerInput = {
+  client_id: string
+}

@@ -48,6 +48,10 @@ export const setClientStatusSchema = z.object({
   status: z.enum(['active', 'inactive'])
 })
 
+export const exportClientLedgerSchema = z.object({
+  client_id: clientIdSchema
+})
+
 export function formatZodError(error: z.ZodError): string {
   return error.issues.map((issue) => issue.message).join(' ')
 }

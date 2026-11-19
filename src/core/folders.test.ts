@@ -4,6 +4,7 @@ import {
   isSyncFolderPath,
   isUncPath,
   pathsOverlap,
+  ledgerPdfBasename,
   pdfExportBasename,
   sameDrive,
   uniqueFilename
@@ -61,5 +62,13 @@ describe('pdfExportBasename', () => {
     expect(pdfExportBasename('INV-0007', false)).toBe('INV-0007.pdf')
     expect(pdfExportBasename('INV-0007', true)).toBe('INV-0007 - no rates.pdf')
     expect(pdfExportBasename(null, false)).toBe('invoice.pdf')
+  })
+})
+
+describe('ledgerPdfBasename', () => {
+  it('builds a sanitized client ledger filename', () => {
+    expect(ledgerPdfBasename('Papa Garments')).toBe('Papa Garments ledger.pdf')
+    expect(ledgerPdfBasename('A/B:C')).toBe('A-B-C ledger.pdf')
+    expect(ledgerPdfBasename('   ')).toBe('client ledger.pdf')
   })
 })

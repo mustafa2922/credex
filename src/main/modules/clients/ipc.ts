@@ -4,11 +4,13 @@ import { ZodError } from 'zod'
 import type { Client } from '../../../shared/clients'
 import {
   createClientSchema,
+  exportClientLedgerSchema,
   formatZodError,
   listClientsSchema,
   setClientStatusSchema,
   updateClientSchema
 } from './schemas'
+import { exportClientLedgerPdf } from './pdf'
 import { createClient, listClients, setClientStatus, updateClient } from './service'
 
 function invoke<T>(fn: () => T): T {
@@ -50,4 +52,16 @@ export function registerClientsIpc(db: Database.Database): void {
       return setClientStatus(db, input.id, input.status)
     })
   )
+
+  ipcMain.handle('clients:exportLedgerPdf', async (_event, raw: unknown) => {
+    try {
+      const input = exportClientLedgerSchema.parse(raw ?? {})
+      return await exportClientLedgerPdf(db, input.client_id)
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new Error(formatZodError(error), { cause: error })
+      }
+      throw error
+    }
+  })
 }

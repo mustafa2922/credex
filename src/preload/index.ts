@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Client, ListClientsParams } from '../shared/clients'
+import type { Client, ExportClientLedgerInput, ListClientsParams } from '../shared/clients'
 import type {
   ExportInvoicePdfInput,
   InvoiceDetail,
@@ -35,7 +35,9 @@ const clients = {
   update: (input: { id: string; name: string; phone?: string }): Promise<Client> =>
     ipcRenderer.invoke('clients:update', input),
   setStatus: (input: { id: string; status: 'active' | 'inactive' }): Promise<Client> =>
-    ipcRenderer.invoke('clients:setStatus', input)
+    ipcRenderer.invoke('clients:setStatus', input),
+  exportLedgerPdf: (input: ExportClientLedgerInput): Promise<ExportInvoicePdfResult> =>
+    ipcRenderer.invoke('clients:exportLedgerPdf', input)
 }
 
 const units = {
