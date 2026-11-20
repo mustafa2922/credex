@@ -1,6 +1,6 @@
 # credex — Source of Truth (SOT)
 
-Last updated: 2026-11-19 · App version: 0.1.0 · DB schema: 6
+Last updated: 2026-11-20 · App version: 0.1.0 · DB schema: 6
 
 ## 0. How to use this file
 - Attached to every prompt. It is authoritative: if code and SOT disagree, or a request conflicts with it, STOP and say so before changing anything.
@@ -101,7 +101,7 @@ All inputs are zod-validated in main. The renderer never touches Node directly (
 ## 9. Frontend practices
 - Reuse existing components, tables, selects, modals, badges and styling. Do not add UI libraries or a second styling/routing system.
 - Sidebar: Home, Clients, Units, Invoices, Payments, Settings.
-- List pages: search, status filter, primary "Add" button, table with row actions, empty and no-results states, refresh after every mutation.
+- List pages: search, status filter, primary "Add" button, table with row actions, empty and no-results states, refresh after every mutation; client-side pagination (20 rows) with Showing X–Y of Z and page controls.
 - Forms: modal or page with inline validation messages; money shown as rupees with thousands separators and 2 decimals, entered in rupees.
 - Destructive or irreversible actions (issue, reopen, void, delete draft) ask for confirmation; void asks for a reason. Warn on leaving a dirty draft.
 - Renderer totals are previews only; the saved numbers come from main.

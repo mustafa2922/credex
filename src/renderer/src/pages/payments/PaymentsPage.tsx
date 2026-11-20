@@ -17,7 +17,9 @@ import { AlertToast, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { ImageViewer } from '@renderer/components/ui/ImageViewer'
 import { Modal } from '@renderer/components/ui/Modal'
+import { Pagination } from '@renderer/components/ui/Pagination'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
+import { useTablePagination } from '@renderer/hooks/useTablePagination'
 import styles from './PaymentsPage.module.css'
 
 type PaymentsLocationState = {
@@ -147,6 +149,8 @@ export function PaymentsPage(): React.JSX.Element {
     alertIdRef.current += 1
     setAlert({ id: alertIdRef.current, title, message, tone })
   }, [])
+
+  const pagination = useTablePagination(payments, `${search}|${statusFilter}`)
 
   const refresh = useCallback(async (): Promise<void> => {
     const id = requestId.current + 1
@@ -295,94 +299,102 @@ export function PaymentsPage(): React.JSX.Element {
           <p className={styles.stateMessage}>No payments match your search or filters.</p>
         ) : null}
         {!loading && !loadError && payments.length > 0 ? (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col">Date</th>
-                  <th scope="col">Client</th>
-                  <th scope="col">Invoice</th>
-                  <th scope="col">Method</th>
-                  <th className={styles.num} scope="col">
-                    Amount
-                  </th>
-                  <th scope="col">Status</th>
-                  <th className={styles.actionsCol} scope="col">
-                    <span className={styles.visuallyHidden}>Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((payment) => {
-                  const active = payment.status === 'active'
-                  const rowBusy = busyId === payment.id
-                  const stamp = formatPaymentStamp(payment.created_at)
-                  return (
-                    <tr
-                      key={payment.id}
-                      className={styles.clickable}
-                      tabIndex={0}
-                      onClick={() => openInvoice(payment.invoice_id)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          openInvoice(payment.invoice_id)
-                        }
-                      }}
-                    >
-                      <td>
-                        {stamp ? (
-                          <div className={styles.stamp}>
-                            <span className={styles.stampDate}>{stamp.date}</span>
-                            <span className={styles.stampTime}>{stamp.time}</span>
-                          </div>
-                        ) : (
-                          payment.payment_date
-                        )}
-                      </td>
-                      <td>{payment.client_name}</td>
-                      <td>{payment.invoice_number ?? '—'}</td>
-                      <td>{paymentMethodLabel(payment.method)}</td>
-                      <td className={styles.num}>{formatRupees(payment.amount)}</td>
-                      <td>
-                        <span className={statusClass(payment.status)}>
-                          {statusLabel(payment.status)}
-                        </span>
-                      </td>
-                      <td className={styles.actionsCol} onClick={stopRowActivation}>
-                        <div className={styles.actions}>
-                          {payment.attachment_path ? (
+          <>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Client</th>
+                    <th scope="col">Invoice</th>
+                    <th scope="col">Method</th>
+                    <th className={styles.num} scope="col">
+                      Amount
+                    </th>
+                    <th scope="col">Status</th>
+                    <th className={styles.actionsCol} scope="col">
+                      <span className={styles.visuallyHidden}>Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagination.rows.map((payment) => {
+                    const active = payment.status === 'active'
+                    const rowBusy = busyId === payment.id
+                    const stamp = formatPaymentStamp(payment.created_at)
+                    return (
+                      <tr
+                        key={payment.id}
+                        className={styles.clickable}
+                        tabIndex={0}
+                        onClick={() => openInvoice(payment.invoice_id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            openInvoice(payment.invoice_id)
+                          }
+                        }}
+                      >
+                        <td>
+                          {stamp ? (
+                            <div className={styles.stamp}>
+                              <span className={styles.stampDate}>{stamp.date}</span>
+                              <span className={styles.stampTime}>{stamp.time}</span>
+                            </div>
+                          ) : (
+                            payment.payment_date
+                          )}
+                        </td>
+                        <td>{payment.client_name}</td>
+                        <td>{payment.invoice_number ?? '—'}</td>
+                        <td>{paymentMethodLabel(payment.method)}</td>
+                        <td className={styles.num}>{formatRupees(payment.amount)}</td>
+                        <td>
+                          <span className={statusClass(payment.status)}>
+                            {statusLabel(payment.status)}
+                          </span>
+                        </td>
+                        <td className={styles.actionsCol} onClick={stopRowActivation}>
+                          <div className={styles.actions}>
+                            {payment.attachment_path ? (
+                              <button
+                                type="button"
+                                className={`${styles.actionButton} ${styles.imageButton}`}
+                                aria-label="View attachment"
+                                title="View attachment"
+                                onClick={() => openAttachmentViewer(payment)}
+                              >
+                                <Icon name="image" width={17} height={17} />
+                              </button>
+                            ) : null}
                             <button
                               type="button"
-                              className={`${styles.actionButton} ${styles.imageButton}`}
-                              aria-label="View attachment"
-                              title="View attachment"
-                              onClick={() => openAttachmentViewer(payment)}
+                              className={styles.actionButton}
+                              disabled={!active || actionBusy}
+                              aria-label="Trash payment"
+                              title="Trash"
+                              onClick={() => setVoidTarget(payment)}
                             >
-                              <Icon name="image" width={17} height={17} />
+                              <Icon name="trash" width={15} height={15} />
+                              {rowBusy ? (
+                                <span className={styles.visuallyHidden}>Working…</span>
+                              ) : null}
                             </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            disabled={!active || actionBusy}
-                            aria-label="Trash payment"
-                            title="Trash"
-                            onClick={() => setVoidTarget(payment)}
-                          >
-                            <Icon name="trash" width={15} height={15} />
-                            {rowBusy ? (
-                              <span className={styles.visuallyHidden}>Working…</span>
-                            ) : null}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={pagination.page}
+              total={pagination.total}
+              pageSize={pagination.pageSize}
+              onPageChange={pagination.setPage}
+            />
+          </>
         ) : null}
       </section>
 

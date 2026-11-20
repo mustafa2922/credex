@@ -5,7 +5,9 @@ import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
+import { Pagination } from '@renderer/components/ui/Pagination'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
+import { useTablePagination } from '@renderer/hooks/useTablePagination'
 import styles from './UnitsPage.module.css'
 
 type FormErrors = {
@@ -141,6 +143,7 @@ export function UnitsPage(): React.JSX.Element {
   const [statusConfirm, setStatusConfirm] = useState<Unit | null>(null)
   const [saving, setSaving] = useState(false)
   const [statusBusy, setStatusBusy] = useState(false)
+  const pagination = useTablePagination(units, `${search}|${statusFilter}`)
 
   const refresh = useCallback(async () => {
     if (!window.api?.units) return
@@ -263,63 +266,71 @@ export function UnitsPage(): React.JSX.Element {
           <p className={styles.stateMessage}>No units match your search or filters.</p>
         ) : null}
         {!loading && !loadError && units.length > 0 ? (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">
-                    <span className={styles.visuallyHidden}>Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {units.map((unit) => (
-                  <tr
-                    key={unit.id}
-                    className={unit.status === 'inactive' ? styles.rowInactive : undefined}
-                  >
-                    <td>{unit.name}</td>
-                    <td>
-                      <span
-                        className={
-                          unit.status === 'active' ? styles.badgeActive : styles.badgeInactive
-                        }
-                      >
-                        {unit.status === 'active' ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className={styles.actionsCell}>
-                      <div className={styles.rowActions}>
-                        <button
-                          type="button"
-                          className={styles.iconButton}
-                          aria-label={`Edit ${unit.name}`}
-                          onClick={() => setModal({ mode: 'edit', unit })}
-                        >
-                          <Icon name="edit" />
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.iconButton}
-                          aria-label={
-                            unit.status === 'active'
-                              ? `Deactivate ${unit.name}`
-                              : `Activate ${unit.name}`
-                          }
-                          disabled={!window.api?.units}
-                          onClick={() => setStatusConfirm(unit)}
-                        >
-                          <Icon name={unit.status === 'active' ? 'pause' : 'check'} />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">
+                      <span className={styles.visuallyHidden}>Actions</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pagination.rows.map((unit) => (
+                    <tr
+                      key={unit.id}
+                      className={unit.status === 'inactive' ? styles.rowInactive : undefined}
+                    >
+                      <td>{unit.name}</td>
+                      <td>
+                        <span
+                          className={
+                            unit.status === 'active' ? styles.badgeActive : styles.badgeInactive
+                          }
+                        >
+                          {unit.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className={styles.actionsCell}>
+                        <div className={styles.rowActions}>
+                          <button
+                            type="button"
+                            className={styles.iconButton}
+                            aria-label={`Edit ${unit.name}`}
+                            onClick={() => setModal({ mode: 'edit', unit })}
+                          >
+                            <Icon name="edit" />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.iconButton}
+                            aria-label={
+                              unit.status === 'active'
+                                ? `Deactivate ${unit.name}`
+                                : `Activate ${unit.name}`
+                            }
+                            disabled={!window.api?.units}
+                            onClick={() => setStatusConfirm(unit)}
+                          >
+                            <Icon name={unit.status === 'active' ? 'pause' : 'check'} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={pagination.page}
+              total={pagination.total}
+              pageSize={pagination.pageSize}
+              onPageChange={pagination.setPage}
+            />
+          </>
         ) : null}
       </section>
 

@@ -14,7 +14,9 @@ import { Page } from '@renderer/components/layout/Page'
 import { AlertToast, type AlertAction, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
+import { Pagination } from '@renderer/components/ui/Pagination'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
+import { useTablePagination } from '@renderer/hooks/useTablePagination'
 import styles from './InvoicesPage.module.css'
 
 function statusLabel(status: InvoiceStatus): string {
@@ -173,6 +175,11 @@ export function InvoicesPage(): React.JSX.Element {
       setAlert({ id: alertIdRef.current, title, message, tone, actions })
     },
     []
+  )
+
+  const pagination = useTablePagination(
+    invoices,
+    `${search}|${statusFilter}|${paymentStatusFilter}`
   )
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -359,128 +366,136 @@ export function InvoicesPage(): React.JSX.Element {
           <p className={styles.stateMessage}>No invoices match your search or filters.</p>
         ) : null}
         {!loading && !loadError && invoices.length > 0 ? (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col">Date</th>
-                  <th scope="col">Number</th>
-                  <th scope="col">Client</th>
-                  <th className={styles.num} scope="col">
-                    Total
-                  </th>
-                  <th className={styles.num} scope="col">
-                    Paid
-                  </th>
-                  <th className={styles.num} scope="col">
-                    Due
-                  </th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Payment</th>
-                  <th className={styles.actionsCol} scope="col">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((invoice) => {
-                  const stamp = formatInvoiceStamp(invoice.created_at)
-                  const issued = invoice.status === 'issued'
-                  const exportable = invoice.status === 'issued' || invoice.status === 'void'
-                  const rowBusy = busyId === invoice.id
-                  return (
-                    <tr
-                      key={invoice.id}
-                      className={styles.clickable}
-                      tabIndex={0}
-                      onClick={() => openInvoice(invoice.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          openInvoice(invoice.id)
-                        }
-                      }}
-                    >
-                      <td>
-                        {stamp ? (
-                          <div className={styles.stamp}>
-                            <span className={styles.stampDate}>{stamp.date}</span>
-                            <span className={styles.stampTime}>{stamp.time}</span>
-                          </div>
-                        ) : (
-                          invoice.invoice_date
-                        )}
-                      </td>
-                      <td>{invoice.number ?? 'Draft'}</td>
-                      <td>{invoice.client_name}</td>
-                      <td className={styles.num}>{formatRupees(invoice.total)}</td>
-                      <td className={styles.num}>{formatRupees(invoice.paid)}</td>
-                      <td className={styles.num}>{formatRupees(invoice.due)}</td>
-                      <td>
-                        <span className={statusClass(invoice.status)}>
-                          {statusLabel(invoice.status)}
-                        </span>
-                      </td>
-                      <td>
-                        {invoice.status === 'issued' ? (
-                          <span
-                            className={
-                              invoice.payment_status === 'paid'
-                                ? styles.badgePaid
-                                : invoice.payment_status === 'partial'
-                                  ? styles.badgePartial
-                                  : styles.badgeUnpaid
-                            }
-                          >
-                            {paymentStatusLabel(invoice.payment_status)}
+          <>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Number</th>
+                    <th scope="col">Client</th>
+                    <th className={styles.num} scope="col">
+                      Total
+                    </th>
+                    <th className={styles.num} scope="col">
+                      Paid
+                    </th>
+                    <th className={styles.num} scope="col">
+                      Due
+                    </th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Payment</th>
+                    <th className={styles.actionsCol} scope="col">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagination.rows.map((invoice) => {
+                    const stamp = formatInvoiceStamp(invoice.created_at)
+                    const issued = invoice.status === 'issued'
+                    const exportable = invoice.status === 'issued' || invoice.status === 'void'
+                    const rowBusy = busyId === invoice.id
+                    return (
+                      <tr
+                        key={invoice.id}
+                        className={styles.clickable}
+                        tabIndex={0}
+                        onClick={() => openInvoice(invoice.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            openInvoice(invoice.id)
+                          }
+                        }}
+                      >
+                        <td>
+                          {stamp ? (
+                            <div className={styles.stamp}>
+                              <span className={styles.stampDate}>{stamp.date}</span>
+                              <span className={styles.stampTime}>{stamp.time}</span>
+                            </div>
+                          ) : (
+                            invoice.invoice_date
+                          )}
+                        </td>
+                        <td>{invoice.number ?? 'Draft'}</td>
+                        <td>{invoice.client_name}</td>
+                        <td className={styles.num}>{formatRupees(invoice.total)}</td>
+                        <td className={styles.num}>{formatRupees(invoice.paid)}</td>
+                        <td className={styles.num}>{formatRupees(invoice.due)}</td>
+                        <td>
+                          <span className={statusClass(invoice.status)}>
+                            {statusLabel(invoice.status)}
                           </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className={styles.actionsCol} onClick={stopRowActivation}>
-                        <div className={styles.actions}>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            disabled={!issued || actionBusy}
-                            aria-label={`Trash ${invoice.number ?? 'draft'}`}
-                            title="Trash"
-                            onClick={() => setTrashTarget(invoice)}
-                          >
-                            <Icon name="trash" width={15} height={15} />
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            disabled={!issued || actionBusy}
-                            aria-label={`Reopen ${invoice.number ?? 'invoice'}`}
-                            title="Reopen"
-                            onClick={() => setReopenTarget(invoice)}
-                          >
-                            <Icon name="reopen" width={15} height={15} />
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            disabled={!exportable || actionBusy}
-                            aria-label={`Export ${invoice.number ?? 'invoice'}`}
-                            title="Export PDF"
-                            onClick={() => void handleExport(invoice)}
-                          >
-                            <Icon name="export" width={15} height={15} />
-                            {rowBusy ? (
-                              <span className={styles.visuallyHidden}>Working…</span>
-                            ) : null}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td>
+                          {invoice.status === 'issued' ? (
+                            <span
+                              className={
+                                invoice.payment_status === 'paid'
+                                  ? styles.badgePaid
+                                  : invoice.payment_status === 'partial'
+                                    ? styles.badgePartial
+                                    : styles.badgeUnpaid
+                              }
+                            >
+                              {paymentStatusLabel(invoice.payment_status)}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className={styles.actionsCol} onClick={stopRowActivation}>
+                          <div className={styles.actions}>
+                            <button
+                              type="button"
+                              className={styles.actionButton}
+                              disabled={!issued || actionBusy}
+                              aria-label={`Trash ${invoice.number ?? 'draft'}`}
+                              title="Trash"
+                              onClick={() => setTrashTarget(invoice)}
+                            >
+                              <Icon name="trash" width={15} height={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.actionButton}
+                              disabled={!issued || actionBusy}
+                              aria-label={`Reopen ${invoice.number ?? 'invoice'}`}
+                              title="Reopen"
+                              onClick={() => setReopenTarget(invoice)}
+                            >
+                              <Icon name="reopen" width={15} height={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.actionButton}
+                              disabled={!exportable || actionBusy}
+                              aria-label={`Export ${invoice.number ?? 'invoice'}`}
+                              title="Export PDF"
+                              onClick={() => void handleExport(invoice)}
+                            >
+                              <Icon name="export" width={15} height={15} />
+                              {rowBusy ? (
+                                <span className={styles.visuallyHidden}>Working…</span>
+                              ) : null}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={pagination.page}
+              total={pagination.total}
+              pageSize={pagination.pageSize}
+              onPageChange={pagination.setPage}
+            />
+          </>
         ) : null}
       </section>
 

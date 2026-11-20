@@ -8,7 +8,9 @@ import { Page } from '@renderer/components/layout/Page'
 import { AlertToast, type AlertAction, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
+import { Pagination } from '@renderer/components/ui/Pagination'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
+import { useTablePagination } from '@renderer/hooks/useTablePagination'
 import styles from './ClientsPage.module.css'
 
 type AlertState = {
@@ -185,6 +187,8 @@ export function ClientsPage(): React.JSX.Element {
     []
   )
 
+  const pagination = useTablePagination(clients, `${search}|${statusFilter}`)
+
   const refresh = useCallback(async () => {
     if (!window.api?.clients) return
     setLoading(true)
@@ -337,80 +341,88 @@ export function ClientsPage(): React.JSX.Element {
           <p className={styles.stateMessage}>No clients match your search or filters.</p>
         ) : null}
         {!loading && !loadError && clients.length > 0 ? (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Phone</th>
-                  <th className={styles.num} scope="col">
-                    Balance
-                  </th>
-                  <th scope="col">Status</th>
-                  <th scope="col">
-                    <span className={styles.visuallyHidden}>Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((client) => (
-                  <tr
-                    key={client.id}
-                    className={client.status === 'inactive' ? styles.rowInactive : undefined}
-                  >
-                    <td>{client.name}</td>
-                    <td>{client.phone ?? '—'}</td>
-                    <td className={styles.num}>{formatRupees(client.balance)}</td>
-                    <td>
-                      <span
-                        className={
-                          client.status === 'active' ? styles.badgeActive : styles.badgeInactive
-                        }
-                      >
-                        {client.status === 'active' ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className={styles.actionsCell}>
-                      <div className={styles.rowActions}>
-                        <button
-                          type="button"
-                          className={styles.iconButton}
-                          aria-label={`Download ledger for ${client.name}`}
-                          disabled={
-                            !window.api?.clients?.exportLedgerPdf || exportBusyId === client.id
-                          }
-                          onClick={() => void handleExportLedger(client)}
-                        >
-                          <Icon name="export" />
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.iconButton}
-                          aria-label={`Edit ${client.name}`}
-                          onClick={() => setModal({ mode: 'edit', client })}
-                        >
-                          <Icon name="edit" />
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.iconButton}
-                          aria-label={
-                            client.status === 'active'
-                              ? `Deactivate ${client.name}`
-                              : `Activate ${client.name}`
-                          }
-                          disabled={!window.api?.clients}
-                          onClick={() => setStatusConfirm(client)}
-                        >
-                          <Icon name={client.status === 'active' ? 'pause' : 'check'} />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Phone</th>
+                    <th className={styles.num} scope="col">
+                      Balance
+                    </th>
+                    <th scope="col">Status</th>
+                    <th scope="col">
+                      <span className={styles.visuallyHidden}>Actions</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pagination.rows.map((client) => (
+                    <tr
+                      key={client.id}
+                      className={client.status === 'inactive' ? styles.rowInactive : undefined}
+                    >
+                      <td>{client.name}</td>
+                      <td>{client.phone ?? '—'}</td>
+                      <td className={styles.num}>{formatRupees(client.balance)}</td>
+                      <td>
+                        <span
+                          className={
+                            client.status === 'active' ? styles.badgeActive : styles.badgeInactive
+                          }
+                        >
+                          {client.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className={styles.actionsCell}>
+                        <div className={styles.rowActions}>
+                          <button
+                            type="button"
+                            className={styles.iconButton}
+                            aria-label={`Download ledger for ${client.name}`}
+                            disabled={
+                              !window.api?.clients?.exportLedgerPdf || exportBusyId === client.id
+                            }
+                            onClick={() => void handleExportLedger(client)}
+                          >
+                            <Icon name="export" />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.iconButton}
+                            aria-label={`Edit ${client.name}`}
+                            onClick={() => setModal({ mode: 'edit', client })}
+                          >
+                            <Icon name="edit" />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.iconButton}
+                            aria-label={
+                              client.status === 'active'
+                                ? `Deactivate ${client.name}`
+                                : `Activate ${client.name}`
+                            }
+                            disabled={!window.api?.clients}
+                            onClick={() => setStatusConfirm(client)}
+                          >
+                            <Icon name={client.status === 'active' ? 'pause' : 'check'} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={pagination.page}
+              total={pagination.total}
+              pageSize={pagination.pageSize}
+              onPageChange={pagination.setPage}
+            />
+          </>
         ) : null}
       </section>
 
