@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { formatRupees } from '../../../../core/money'
+import { Money } from '@renderer/components/ui/Money'
 import type {
   InvoiceListStatus,
   InvoicePaymentStatusFilter,
@@ -421,9 +421,15 @@ export function InvoicesPage(): React.JSX.Element {
                         </td>
                         <td>{invoice.number ?? 'Draft'}</td>
                         <td>{invoice.client_name}</td>
-                        <td className={styles.num}>{formatRupees(invoice.total)}</td>
-                        <td className={styles.num}>{formatRupees(invoice.paid)}</td>
-                        <td className={styles.num}>{formatRupees(invoice.due)}</td>
+                        <td className={styles.num}>
+                          <Money paisa={invoice.total} />
+                        </td>
+                        <td className={styles.num}>
+                          <Money paisa={invoice.paid} />
+                        </td>
+                        <td className={styles.num}>
+                          <Money paisa={invoice.due} />
+                        </td>
                         <td>
                           <span className={statusClass(invoice.status)}>
                             {statusLabel(invoice.status)}

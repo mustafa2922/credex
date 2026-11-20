@@ -43,7 +43,7 @@ Flow: Renderer → preload (typed `window.api`) → main IPC (zod-validated) →
 src/core/        pure TS (money, due/paid/status, folder helpers) + vitest; no Electron imports
 src/shared/      shared types/helpers used by main + preload + renderer
 src/main/        index.ts, db.ts, migrations.ts, paths.ts, logger.ts, updater.ts, files/
-  modules/       clients/ units/ invoices/ payments/ settings/
+  modules/       clients/ units/ invoices/ payments/ dashboard/ settings/
                  (each: service.ts + ipc.ts; clients/units/invoices/payments also schemas.ts)
 src/preload/     index.ts (typed API), index.d.ts
 src/renderer/    pages + shared components
@@ -95,14 +95,15 @@ Money: integer paisa (rates, totals, payments). Quantity: integer thousandths (m
 - **units:** list({ search, status }), create, update, setStatus
 - **invoices:** save, get, list({ search, status, client_id, payment_status }), issue, reopen, void, deleteDraft, pickImage, saveImage, exportPdf({ hideRates })
 - **payments:** create({ client_id, invoice_id?, amount, method, payment_date, note?, attachment_path? } → { created: [{ invoice_id, invoice_number, amount }] }), preview({ client_id, invoice_id?, amount } → split or error; no writes), list({ invoice_id, client_id, status, search }), void, pickAttachment
+- **dashboard:** `getSummary` → receivable, open invoice count, collected this month, active clients, last-6-months invoiced/collected, issued payment-status counts, recent issued invoices (all money paisa; computed in main)
 - **settings:** get, copyDiagnostics, pickDirectory, inspectDataDir, changeDataDir, changeExportsDir, changeBackupDir, runBackup → `{ path, folderName }`, openPath, showInFolder, openConfig, openLogs
 All inputs are zod-validated in main. The renderer never touches Node directly (contextIsolation on, nodeIntegration off, restricted CSP).
 
 ## 9. Frontend practices
 - Reuse existing components, tables, selects, modals, badges and styling. Do not add UI libraries or a second styling/routing system.
-- Sidebar: Home, Clients, Units, Invoices, Payments, Settings.
+- Sidebar: Home, Clients, Units, Invoices, Payments, Settings. Home is a scrollable overview (KPIs, charts, recent invoices) via `dashboard:getSummary`.
 - List pages: search, status filter, primary "Add" button, table with row actions, empty and no-results states, refresh after every mutation; client-side pagination (20 rows) with Showing X–Y of Z and page controls.
-- Forms: modal or page with inline validation messages; money shown as rupees with thousands separators and 2 decimals, entered in rupees.
+- Forms: modal or page with inline validation messages; money shown as rupees with thousands separators and 2 decimals, entered in rupees. UI amounts use shared `Money` (prominent whole, muted decimals); plain `formatRupees` only for strings (toasts, select labels, errors, PDFs).
 - Destructive or irreversible actions (issue, reopen, void, delete draft) ask for confirmation; void asks for a reason. Warn on leaving a dirty draft.
 - Renderer totals are previews only; the saved numbers come from main.
 

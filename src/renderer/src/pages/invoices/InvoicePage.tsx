@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import { Link, useBlocker, useLocation, useNavigate, useParams } from 'react-router'
 import {
-  formatPaisa,
   formatQuantityThousandths,
   formatRatePaisa,
   formatRupees,
@@ -37,6 +36,7 @@ import { Page } from '@renderer/components/layout/Page'
 import { AlertToast, type AlertAction, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { ImageViewer } from '@renderer/components/ui/ImageViewer'
+import { Money } from '@renderer/components/ui/Money'
 import { Modal } from '@renderer/components/ui/Modal'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
 import styles from './InvoicePage.module.css'
@@ -219,17 +219,15 @@ function formatPaymentStamp(value: string): { date: string; time: string } | nul
   }
 }
 
-function lineTotalAmount(line: LineDraft): string | null {
+function lineTotalPaisaValue(line: LineDraft): number | null {
   try {
-    return formatPaisa(
-      lineTotalPaisa(parseRatePaisa(line.rate), parseQuantityThousandths(line.quantity))
-    )
+    return lineTotalPaisa(parseRatePaisa(line.rate), parseQuantityThousandths(line.quantity))
   } catch {
     return null
   }
 }
 
-function invoiceTotalAmount(lines: LineDraft[]): string | null {
+function invoiceTotalPaisaValue(lines: LineDraft[]): number | null {
   const totals: number[] = []
   for (const line of lines) {
     try {
@@ -240,21 +238,20 @@ function invoiceTotalAmount(lines: LineDraft[]): string | null {
       // Skip incomplete rows; show the sum of complete ones.
     }
   }
-  if (totals.length === 0) return lines.length === 0 ? formatPaisa(0) : null
-  return formatPaisa(invoiceTotalPaisa(totals))
+  if (totals.length === 0) return lines.length === 0 ? 0 : null
+  return invoiceTotalPaisa(totals)
 }
 
 function MoneyReadout({
-  amount,
+  paisa,
   emphasize = false
 }: {
-  amount: string | null
+  paisa: number | null
   emphasize?: boolean
 }): React.JSX.Element {
   return (
     <div className={emphasize ? styles.moneyFieldStrong : styles.moneyField} aria-live="polite">
-      <span className={styles.moneyCurrency}>Rs</span>
-      <span className={amount ? styles.moneyAmount : styles.moneyAmountEmpty}>{amount ?? ''}</span>
+      <Money paisa={paisa} className={paisa == null ? styles.moneyAmountEmpty : styles.moneyAmount} />
     </div>
   )
 }
@@ -1381,7 +1378,7 @@ export function InvoicePage(): React.JSX.Element {
                       />
                     </td>
                     <td className={`${styles.num} ${styles.totalCol}`}>
-                      <MoneyReadout amount={lineTotalAmount(line)} />
+                      <MoneyReadout paisa={lineTotalPaisaValue(line)} />
                     </td>
                     {editable ? (
                       <td className={styles.removeCol}>
@@ -1414,7 +1411,7 @@ export function InvoicePage(): React.JSX.Element {
         ) : null}
         <div className={styles.footer}>
           <span className={styles.footerLabel}>Total</span>
-          <MoneyReadout amount={invoiceTotalAmount(editor.lines)} emphasize />
+          <MoneyReadout paisa={invoiceTotalPaisaValue(editor.lines)} emphasize />
         </div>
       </section>
 
@@ -1423,15 +1420,15 @@ export function InvoicePage(): React.JSX.Element {
           <div className={styles.paymentSummaryGrid}>
             <div className={styles.paymentSummaryField}>
               <span className={styles.label}>Total</span>
-              <MoneyReadout amount={formatPaisa(invoice.total)} />
+              <MoneyReadout paisa={invoice.total} />
             </div>
             <div className={styles.paymentSummaryField}>
               <span className={styles.label}>Paid</span>
-              <MoneyReadout amount={formatPaisa(invoice.paid)} />
+              <MoneyReadout paisa={invoice.paid} />
             </div>
             <div className={styles.paymentSummaryField}>
               <span className={styles.label}>Due</span>
-              <MoneyReadout amount={formatPaisa(invoice.due)} />
+              <MoneyReadout paisa={invoice.due} />
             </div>
             <div className={styles.paymentSummaryBadge}>
               <span className={styles.label}>Payment status</span>
@@ -1495,7 +1492,9 @@ export function InvoicePage(): React.JSX.Element {
                             )}
                           </td>
                           <td>{paymentMethodLabel(payment.method)}</td>
-                          <td className={styles.num}>{formatRupees(payment.amount)}</td>
+                          <td className={styles.num}>
+                            <Money paisa={payment.amount} />
+                          </td>
                           <td>
                             {payment.note ? (
                               payment.note

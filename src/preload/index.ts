@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Client, ExportClientLedgerInput, ListClientsParams } from '../shared/clients'
+import type { DashboardSummary } from '../shared/dashboard'
 import type {
   ExportInvoicePdfInput,
   InvoiceDetail,
@@ -108,6 +109,10 @@ const payments = {
   pickAttachment: (): Promise<string | null> => ipcRenderer.invoke('payments:pickAttachment')
 }
 
+const dashboard = {
+  getSummary: (): Promise<DashboardSummary> => ipcRenderer.invoke('dashboard:getSummary')
+}
+
 const api = {
   info: (): Promise<{ version: string; schema: number }> => ipcRenderer.invoke('app:info'),
   startup: (): Promise<StartupState> => ipcRenderer.invoke('app:startup'),
@@ -144,6 +149,7 @@ const api = {
   units,
   invoices,
   payments,
+  dashboard,
   settings
 }
 contextBridge.exposeInMainWorld('api', api)

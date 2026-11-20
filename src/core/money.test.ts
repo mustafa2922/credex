@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import {
   formatAmountInput,
   formatPaisa,
+  formatPaisaParts,
   formatQuantityThousandths,
   formatRatePaisa,
   formatRupees,
@@ -113,6 +114,8 @@ describe('formatting', () => {
     expect(formatPaisa(-1050)).toBe('-10.50')
     expect(formatRupees(123456)).toBe('Rs 1,234.56')
     expect(formatRupees(10000000)).toBe('Rs 1,00,000.00')
+    expect(formatPaisaParts(123456)).toEqual({ sign: '', whole: '1,234', fraction: '56' })
+    expect(formatPaisaParts(-1050)).toEqual({ sign: '-', whole: '10', fraction: '50' })
   })
 
   test('formats quantity and rate inputs without grouping', () => {

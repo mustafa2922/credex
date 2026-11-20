@@ -1,1 +1,534 @@
-/* Home is intentionally empty for now. */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.header {
+  flex: none;
+}
+
+.crumb {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.greeting {
+  margin: 0;
+  font-size: clamp(20px, 2.4vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--color-text);
+}
+
+.wave {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: waveHand 2.4s ease-in-out infinite;
+}
+
+@keyframes waveHand {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0deg);
+  }
+  10%,
+  30% {
+    transform: rotate(14deg);
+  }
+  20%,
+  40% {
+    transform: rotate(-8deg);
+  }
+}
+
+.timestamp {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background-soft);
+  min-width: 0;
+}
+
+.kpi {
+  position: relative;
+  padding: 14px 16px;
+  transition: border-color 160ms ease;
+}
+
+.kpi:hover {
+  border-color: color-mix(in srgb, var(--color-border) 55%, var(--color-text-muted));
+}
+
+.kpiTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kpiLabel {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.kpiIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--color-text-faint);
+  transition:
+    color 160ms ease,
+    transform 180ms ease;
+}
+
+.kpi:hover .kpiIcon {
+  color: var(--color-text-muted);
+  transform: translateY(-1px) scale(1.08);
+}
+
+.kpiValue {
+  margin: 10px 0 0;
+  font-size: clamp(16px, 1.6vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.kpiValuePositive {
+  color: #6fbf88;
+}
+
+.kpiValueAccent {
+  color: var(--color-accent);
+}
+
+.kpiNote {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
+
+.charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.chartCard {
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: visible;
+}
+
+.cardHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.cardSubtitle {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.dotInvoiced {
+  background: var(--color-accent);
+}
+
+.dotCollected,
+.dotPaid {
+  background: #6fbf88;
+}
+
+.dotPartial {
+  background: #d4a85a;
+}
+
+.dotUnpaid {
+  background: #c48a6a;
+}
+
+.chartBody {
+  height: 200px;
+  margin-top: 8px;
+  min-width: 0;
+  overflow: visible;
+}
+
+.chartInteractive {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.revenueCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.chartTooltip {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, calc(-100% - 6px));
+  min-width: 148px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+  font-size: 11px;
+}
+
+.chartTooltipTitle {
+  margin-bottom: 6px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.chartTooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.chartTooltipRow strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chartTooltipKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  opacity: 0.82;
+}
+
+.statusBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 200px;
+  padding: 8px 0 4px;
+}
+
+.donutWrap {
+  position: relative;
+  width: min(140px, 42vw);
+  aspect-ratio: 1;
+  flex: none;
+}
+
+.donutSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.donutSegment {
+  transition:
+    stroke-width 160ms ease,
+    opacity 160ms ease;
+}
+
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donutCenter strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+
+.donutCenter span {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.statusLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.statusItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.statusItem:hover,
+.statusItem:focus-visible,
+.statusItemActive {
+  color: var(--color-text);
+  background: var(--color-hover);
+  border-color: var(--color-border);
+  outline: none;
+}
+
+.statusItem strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.statusPercent {
+  opacity: 0.72;
+  font-variant-numeric: tabular-nums;
+}
+
+.recent {
+  padding: 12px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.recentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  flex: none;
+}
+
+.viewAll {
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.viewAll:hover {
+  text-decoration: underline;
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+
+.table th {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr.clickable {
+  cursor: pointer;
+}
+
+.table tbody tr.clickable:hover td {
+  background: var(--color-hover);
+}
+
+.invoiceNumber {
+  font-weight: 600;
+}
+
+.clientName {
+  font-weight: 500;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.badgeUnpaid,
+.badgePartial,
+.badgePaid {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badgeUnpaid {
+  color: #e8a0a0;
+  background: rgba(180, 100, 100, 0.16);
+}
+
+.badgePartial {
+  color: #e0c07a;
+  background: rgba(180, 150, 80, 0.16);
+}
+
+.badgePaid {
+  color: #9ed4a8;
+  background: rgba(120, 180, 130, 0.16);
+}
+
+.stateMessage {
+  padding: 18px 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.errorMessage {
+  color: #e8a0a0;
+}
+
+@media (max-width: 1100px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .charts {
+    grid-template-columns: 1fr;
+  }
+
+  .chartBody,
+  .statusBody {
+    min-height: 180px;
+  }
+
+  .chartBody {
+    height: 180px;
+  }
+}
+
+@media (max-width: 640px) {
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi {
+    padding: 12px 14px;
+  }
+
+  .kpiValue {
+    font-size: 20px;
+  }
+
+  .greeting {
+    font-size: 20px;
+  }
+
+  .chartCard,
+  .recent {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

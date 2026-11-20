@@ -1,0 +1,23 @@
+.root {
+  display: inline;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.currency {
+  opacity: 0.72;
+}
+
+.whole {
+  opacity: 1;
+}
+
+.fraction {
+  opacity: 0.55;
+}
+
+.empty {
+  display: inline-block;
+  min-width: 7ch;
+  color: transparent;
+}

@@ -6,6 +6,7 @@ import icon from '../../resources/icon.png?asset'
 import { openDb, schemaVersion } from './db'
 import { registerFileProtocol, registerFileScheme } from './files/protocol'
 import { registerClientsIpc } from './modules/clients/ipc'
+import { registerDashboardIpc } from './modules/dashboard/ipc'
 import { registerInvoicesIpc } from './modules/invoices/ipc'
 import { registerPaymentsIpc } from './modules/payments/ipc'
 import { registerUnitsIpc } from './modules/units/ipc'
@@ -185,6 +186,7 @@ app.whenReady().then(() => {
   registerUnitsIpc(db)
   registerInvoicesIpc(db)
   registerPaymentsIpc(db)
+  registerDashboardIpc(db)
   registerSettingsIpc(db)
   registerFileProtocol()
 

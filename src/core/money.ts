@@ -106,14 +106,30 @@ export function invoiceTotalPaisa(lineTotals: readonly number[]): number {
   return Number(sum)
 }
 
-/** Format paisa as rupees with Pakistani grouping and 2 decimal places. */
-export function formatPaisa(paisa: number): string {
+export type PaisaParts = {
+  sign: '' | '-'
+  /** Grouped whole rupees (no decimal). */
+  whole: string
+  /** Always two digits. */
+  fraction: string
+}
+
+/** Split paisa into sign / whole / fraction for styled money display. */
+export function formatPaisaParts(paisa: number): PaisaParts {
   assertSafeInteger(paisa, 'Amount is invalid')
   const negative = paisa < 0
   const value = negative ? -BigInt(paisa) : BigInt(paisa)
-  const rupees = formatPakistaniGroupedDigits((value / 100n).toString())
-  const fraction = (value % 100n).toString().padStart(2, '0')
-  return `${negative ? '-' : ''}${rupees}.${fraction}`
+  return {
+    sign: negative ? '-' : '',
+    whole: formatPakistaniGroupedDigits((value / 100n).toString()),
+    fraction: (value % 100n).toString().padStart(2, '0')
+  }
+}
+
+/** Format paisa as rupees with Pakistani grouping and 2 decimal places. */
+export function formatPaisa(paisa: number): string {
+  const { sign, whole, fraction } = formatPaisaParts(paisa)
+  return `${sign}${whole}.${fraction}`
 }
 
 /** Format paisa for display, prefixed with Rs. */

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { formatRupees } from '../../../../core/money'
 import type { Client, ClientListStatus } from '../../../../shared/clients'
 import { ipcErrorMessage } from '../../../../shared/ipcError'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
 import { AlertToast, type AlertAction, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
+import { Money } from '@renderer/components/ui/Money'
 import { Modal } from '@renderer/components/ui/Modal'
 import { Pagination } from '@renderer/components/ui/Pagination'
 import { SearchableSelect } from '@renderer/components/ui/SearchableSelect'
@@ -365,7 +365,9 @@ export function ClientsPage(): React.JSX.Element {
                     >
                       <td>{client.name}</td>
                       <td>{client.phone ?? '—'}</td>
-                      <td className={styles.num}>{formatRupees(client.balance)}</td>
+                      <td className={styles.num}>
+                        <Money paisa={client.balance} />
+                      </td>
                       <td>
                         <span
                           className={

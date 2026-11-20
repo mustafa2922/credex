@@ -13,6 +13,7 @@ import { paymentMethodLabel, summarizePaymentAllocations } from '../../../../sha
 import { NewPaymentModal } from '@renderer/components/payments/NewPaymentModal'
 import { Icon } from '@renderer/components/icons/Icon'
 import { Page } from '@renderer/components/layout/Page'
+import { Money } from '@renderer/components/ui/Money'
 import { AlertToast, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { ImageViewer } from '@renderer/components/ui/ImageViewer'
@@ -348,7 +349,9 @@ export function PaymentsPage(): React.JSX.Element {
                         <td>{payment.client_name}</td>
                         <td>{payment.invoice_number ?? '—'}</td>
                         <td>{paymentMethodLabel(payment.method)}</td>
-                        <td className={styles.num}>{formatRupees(payment.amount)}</td>
+                        <td className={styles.num}>
+                          <Money paisa={payment.amount} />
+                        </td>
                         <td>
                           <span className={statusClass(payment.status)}>
                             {statusLabel(payment.status)}

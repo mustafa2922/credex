@@ -317,24 +317,11 @@
   font-weight: 700;
 }
 
-.moneyCurrency {
-  flex: 0 0 auto;
-  color: var(--color-text-muted);
-}
-
-.moneyFieldStrong .moneyCurrency {
-  color: var(--color-text);
-}
-
 .moneyAmount,
 .moneyAmountEmpty {
   flex: 1 1 auto;
   min-width: 7ch;
   text-align: right;
-}
-
-.moneyAmountEmpty {
-  color: transparent;
 }
 
 .imageCell {
