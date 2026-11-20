@@ -44,4 +44,9 @@ export type ChangeFolderInput = {
   confirmSameDrive?: boolean
 }
 
+export type RunBackupResult = {
+  path: string
+  folderName: string
+}
+
 export type ExportInvoicePdfResult = { saved: true; filename: string; filePath: string }

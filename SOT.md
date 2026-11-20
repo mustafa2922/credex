@@ -10,7 +10,7 @@ Last updated: 2026-11-20 · App version: 0.1.0 · DB schema: 6
 
 ## 1. Product
 Offline Windows desktop ledger for a garments/DTF printing shop: clients, sales invoices (many design lines each, with images), payments against invoices, per-client balance. One install = one business, one user, no login/roles/PIN. Works fully offline.
-Not built (do not add unless asked): cloud backup/sync, registration/licensing, other reports beyond client ledger PDF, Excel export, Urdu/RTL, discounts, taxes, advances/credit, backup creation/restore (the backup folder setting exists, backups do not).
+Not built (do not add unless asked): cloud backup/sync, registration/licensing, other reports beyond client ledger PDF, Excel export, Urdu/RTL, discounts, taxes, advances/credit, dedicated backup restore UI (dated snapshots from Run backup can be opened later via Change data folder → use existing).
 
 ## 2. Stack and commands
 - Electron + electron-vite, React, TypeScript, better-sqlite3 (raw SQL, no ORM), zod (IPC validation), vitest (`src/core` and pure helpers), electron-updater, electron-builder (NSIS).
@@ -32,10 +32,10 @@ Not built (do not add unless asked): cloud backup/sync, registration/licensing, 
 - `src/main/paths.ts` is the ONLY place that resolves app folder paths (`dataDir` / `exportsDir` / `backupDir`, derived dirs, and OS temp). No other code calls `app.getPath` for folders or hardcodes them.
 - **dataDir** (default `userData`): `ledger.db` (+ `-wal`, `-shm`), `files/` (images and attachments), `logs/`, `premigration/` (safety copies). Self-contained: the DB stores filenames only, never absolute paths.
 - **exportsDir** (default `<Downloads>\credex`): PDFs auto-save here, named by invoice number (`INV-0007.pdf`, then `INV-0007 (2).pdf`; never overwrite; ` - no rates` suffix when rates hidden) or client ledger (`{Client} ledger.pdf`). Toast with Open file / Open folder. Write failures show an error toast with path, reason and "Change exports folder".
-- **backupDir** (default `<Downloads>\credex\backups`): must not be inside dataDir; warn/confirm if on the same drive as dataDir. No backup logic yet.
+- **backupDir** (default `<Downloads>\credex\backups`): must not be inside dataDir; warn/confirm if on the same drive as dataDir. Settings **Run backup**: new dated folder `YYYY-MM-DD_HHmmss` under backupDir (` (2)`… on collision); SQLite online backup of `ledger.db` + copy of `files/` (plus empty `logs/`/`premigration/` so the snapshot is a valid dataDir); `integrity_check`; delete partial folder on failure. Manual only (no schedule).
 - Startup safety: if config exists but dataDir or `ledger.db` is missing/unreadable, show a blocking screen (Retry / Choose folder / Quit). NEVER create an empty DB in that case. Fresh install (no config): use defaults and write absolute paths to config.
 - Change data folder: reject UNC paths, nesting inside/around current dataDir; confirm on OneDrive/Dropbox/Google Drive/iCloud paths; target must be empty (copy) or a valid existing data folder (schema ≤ app's). Copy flow: WAL checkpoint → close DB → copy folder → open copy, `integrity_check`, compare row counts (clients, units, invoices, payments) → write config → relaunch. Any failure: remove partial copy, keep old config, relaunch. Never delete the old folder.
-- Settings page shows all three folders (path, status chip OK/Missing/Not writable/Not set, free space, Open/Change), app info (version, schema, DB file/size, config file, logs), Open config/logs, Copy diagnostics, update check, and theme toggle (dark/light; theme is localStorage + `window:theme`, not settings IPC).
+- Settings page shows all three folders (path, status chip OK/Missing/Not writable/Not set, free space, Open/Change; Backups also has Run backup), app info (version, schema, DB file/size, config file, logs), Open config/logs, Copy diagnostics, update check, and theme toggle (dark/light; theme is localStorage + `window:theme`, not settings IPC).
 
 ## 5. Architecture and code conventions
 Flow: Renderer → preload (typed `window.api`) → main IPC (zod-validated) → service → SQLite.
@@ -95,7 +95,7 @@ Money: integer paisa (rates, totals, payments). Quantity: integer thousandths (m
 - **units:** list({ search, status }), create, update, setStatus
 - **invoices:** save, get, list({ search, status, client_id, payment_status }), issue, reopen, void, deleteDraft, pickImage, saveImage, exportPdf({ hideRates })
 - **payments:** create({ client_id, invoice_id?, amount, method, payment_date, note?, attachment_path? } → { created: [{ invoice_id, invoice_number, amount }] }), preview({ client_id, invoice_id?, amount } → split or error; no writes), list({ invoice_id, client_id, status, search }), void, pickAttachment
-- **settings:** get, copyDiagnostics, pickDirectory, inspectDataDir, changeDataDir, changeExportsDir, changeBackupDir, openPath, showInFolder, openConfig, openLogs
+- **settings:** get, copyDiagnostics, pickDirectory, inspectDataDir, changeDataDir, changeExportsDir, changeBackupDir, runBackup → `{ path, folderName }`, openPath, showInFolder, openConfig, openLogs
 All inputs are zod-validated in main. The renderer never touches Node directly (contextIsolation on, nodeIntegration off, restricted CSP).
 
 ## 9. Frontend practices

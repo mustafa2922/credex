@@ -2,10 +2,18 @@ import { app, dialog, shell, type BrowserWindow } from 'electron'
 import Database from 'better-sqlite3'
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs'
 import { join, resolve } from 'path'
-import { isSyncFolderPath, isUncPath, pathsOverlap, sameDrive } from '../../../core/folders'
+import {
+  backupFolderBasename,
+  isSyncFolderPath,
+  isUncPath,
+  pathsOverlap,
+  sameDrive,
+  uniqueFilename
+} from '../../../core/folders'
 import type {
   ChangeDataDirInput,
   ChangeFolderInput,
+  RunBackupResult,
   SettingsSnapshot
 } from '../../../shared/settings'
 import { latestMigrationVersion, schemaVersion } from '../../db'
@@ -20,6 +28,7 @@ import {
   defaultExportsDir,
   directorySizeBytes,
   exportsDir,
+  filesDir,
   folderStatus,
   freeDiskBytes,
   getConfig,
@@ -283,6 +292,46 @@ export function changeBackupDir(input: ChangeFolderInput): void {
   const config = getConfig()
   saveConfig({ ...config, backupDir: resolved })
   logger.info(`backupDir set to ${resolved}`)
+}
+
+/** Snapshot dataDir into a new dated folder under backupDir (DB online backup + files/). */
+export async function runBackup(liveDb: Database.Database): Promise<RunBackupResult> {
+  const backupsPath = backupDir()
+  if (pathsOverlap(backupsPath, dataDir())) {
+    throw new Error('Backup folder must not be inside the data folder')
+  }
+  if (!probeWritableDirectory(backupsPath)) {
+    throw new Error('Backup folder is not writable')
+  }
+
+  const folderName = uniqueFilename(backupFolderBasename(), (name) =>
+    existsSync(join(backupsPath, name))
+  )
+  const target = join(backupsPath, folderName)
+
+  try {
+    prepareDataTree(target)
+    const targetDb = join(target, 'ledger.db')
+    await liveDb.backup(targetDb)
+    if (!integrityOk(targetDb)) throw new Error('Backup database failed integrity_check')
+
+    const sourceFiles = filesDir()
+    if (existsSync(sourceFiles)) {
+      copyDirectoryRecursive(sourceFiles, join(target, 'files'))
+    }
+
+    logger.info(`Backup created at ${target}`)
+    return { path: target, folderName }
+  } catch (error) {
+    try {
+      rmSync(target, { recursive: true, force: true })
+    } catch {
+      // Leave a partial folder only if cleanup itself fails.
+    }
+    logger.error(`Backup failed: ${String(error)}`)
+    if (error instanceof Error) throw error
+    throw new Error('Could not create backup', { cause: error })
+  }
 }
 
 export async function openPath(target: string): Promise<void> {

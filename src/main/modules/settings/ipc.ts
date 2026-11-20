@@ -13,6 +13,7 @@ import {
   openConfigFile,
   openPath,
   pickDirectory,
+  runBackup,
   showInFolder
 } from './service'
 import { initializePaths, getStartupFailure } from '../../paths'
@@ -83,6 +84,10 @@ export function registerSettingsIpc(db: Database.Database): void {
       if (error instanceof ZodError) throw new Error(formatZodError(error), { cause: error })
       throw error
     }
+  })
+
+  ipcMain.handle('settings:runBackup', async () => {
+    return runBackup(db)
   })
 
   ipcMain.handle('settings:openPath', async (_event, raw: unknown) => {

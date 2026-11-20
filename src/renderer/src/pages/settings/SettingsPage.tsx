@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { SettingsSnapshot } from '../../../../shared/settings'
 import { Page } from '@renderer/components/layout/Page'
-import { AlertToast, type AlertTone } from '@renderer/components/ui/AlertToast'
+import { AlertToast, type AlertAction, type AlertTone } from '@renderer/components/ui/AlertToast'
 import { Button } from '@renderer/components/ui/Button'
 import { useTheme } from '@renderer/theme'
 import styles from './SettingsPage.module.css'
+
+type AlertState = {
+  id: number
+  title: string
+  message: string
+  tone: AlertTone
+  actions?: AlertAction[]
+}
 
 function formatBytes(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—'
@@ -39,15 +47,13 @@ export function SettingsPage(): React.JSX.Element {
   const [loadError, setLoadError] = useState('')
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
-  const [alert, setAlert] = useState<{
-    id: number
-    title: string
-    message: string
-    tone: AlertTone
-  } | null>(null)
-  const showAlert = useCallback((message: string, title: string, tone: AlertTone): void => {
-    setAlert((prev) => ({ id: (prev?.id ?? 0) + 1, title, message, tone }))
-  }, [])
+  const [alert, setAlert] = useState<AlertState | null>(null)
+  const showAlert = useCallback(
+    (message: string, title: string, tone: AlertTone, actions?: AlertAction[]): void => {
+      setAlert((prev) => ({ id: (prev?.id ?? 0) + 1, title, message, tone, actions }))
+    },
+    []
+  )
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!window.api?.settings) {
@@ -125,6 +131,35 @@ export function SettingsPage(): React.JSX.Element {
         error instanceof Error ? error.message : 'Could not change backup folder',
         'Settings',
         'error'
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runBackup(): Promise<void> {
+    if (!window.api?.settings) return
+    setBusy(true)
+    try {
+      const result = await window.api.settings.runBackup()
+      showAlert(`Saved ${result.folderName}`, 'Backup complete', 'success', [
+        {
+          label: 'Open folder',
+          onClick: () => void window.api?.settings.openPath(result.path)
+        }
+      ])
+      await refresh()
+    } catch (error) {
+      showAlert(
+        error instanceof Error ? error.message : 'Could not create backup',
+        'Backup failed',
+        'error',
+        [
+          {
+            label: 'Change backup folder',
+            onClick: () => void changeBackups()
+          }
+        ]
       )
     } finally {
       setBusy(false)
@@ -250,6 +285,15 @@ export function SettingsPage(): React.JSX.Element {
                     ) : null}
                   </div>
                   <div className={styles.actions}>
+                    {row.key === 'backups' ? (
+                      <Button
+                        variant="primary"
+                        disabled={busy || !row.folder.path}
+                        onClick={() => void runBackup()}
+                      >
+                        Run backup
+                      </Button>
+                    ) : null}
                     {row.folder.path ? (
                       <Button
                         disabled={busy}
@@ -260,7 +304,11 @@ export function SettingsPage(): React.JSX.Element {
                         Open
                       </Button>
                     ) : null}
-                    <Button variant="primary" disabled={busy} onClick={() => void row.onChange()}>
+                    <Button
+                      variant={row.key === 'backups' ? 'secondary' : 'primary'}
+                      disabled={busy}
+                      onClick={() => void row.onChange()}
+                    >
                       Change
                     </Button>
                   </div>
@@ -379,6 +427,7 @@ export function SettingsPage(): React.JSX.Element {
           title={alert.title}
           message={alert.message}
           tone={alert.tone}
+          actions={alert.actions}
           onClose={() => setAlert(null)}
         />
       ) : null}

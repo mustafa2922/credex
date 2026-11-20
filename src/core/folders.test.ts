@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  backupFolderBasename,
   isPathInsideOrEqual,
   isSyncFolderPath,
   isUncPath,
@@ -70,5 +71,11 @@ describe('ledgerPdfBasename', () => {
     expect(ledgerPdfBasename('Papa Garments')).toBe('Papa Garments ledger.pdf')
     expect(ledgerPdfBasename('A/B:C')).toBe('A-B-C ledger.pdf')
     expect(ledgerPdfBasename('   ')).toBe('client ledger.pdf')
+  })
+})
+
+describe('backupFolderBasename', () => {
+  it('formats a local dated folder name', () => {
+    expect(backupFolderBasename(new Date(2026, 10, 20, 11, 55, 30))).toBe('2026-11-20_115530')
   })
 })

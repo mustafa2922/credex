@@ -84,6 +84,17 @@ export function pdfExportBasename(invoiceNumber: string | null, hideRates: boole
   return hideRates ? `${base} - no rates.pdf` : `${base}.pdf`
 }
 
+/** Local dated folder name for a backup snapshot: `YYYY-MM-DD_HHmmss`. */
+export function backupFolderBasename(now: Date = new Date()): string {
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  const ss = String(now.getSeconds()).padStart(2, '0')
+  return `${y}-${m}-${d}_${hh}${mm}${ss}`
+}
+
 /** Safe basename for a client ledger PDF export. */
 export function ledgerPdfBasename(clientName: string): string {
   const base = (clientName.trim() || 'client').replace(/[<>:"/\\|?*]/g, '-')

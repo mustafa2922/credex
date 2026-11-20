@@ -12,6 +12,7 @@ import type {
   ChangeDataDirInput,
   ChangeFolderInput,
   ExportInvoicePdfResult,
+  RunBackupResult,
   SettingsSnapshot,
   StartupState
 } from '../shared/settings'
@@ -89,6 +90,7 @@ const settings = {
     ipcRenderer.invoke('settings:changeExportsDir', input),
   changeBackupDir: (input: ChangeFolderInput): Promise<SettingsSnapshot> =>
     ipcRenderer.invoke('settings:changeBackupDir', input),
+  runBackup: (): Promise<RunBackupResult> => ipcRenderer.invoke('settings:runBackup'),
   openPath: (path: string): Promise<void> => ipcRenderer.invoke('settings:openPath', path),
   showInFolder: (path: string): Promise<void> => ipcRenderer.invoke('settings:showInFolder', path),
   openConfig: (): Promise<void> => ipcRenderer.invoke('settings:openConfig'),
